@@ -1,41 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="36dp"
-    android:background="?attr/selectableItemBackground"
+    android:layout_marginVertical="1dp"
+    android:layout_marginHorizontal="2dp"
     android:clickable="true"
     android:focusable="true"
-    android:gravity="center_vertical"
-    android:orientation="horizontal"
-    android:paddingHorizontal="6dp">
+    android:stateListAnimator="@animator/blbl_focus_scale"
+    app:cardBackgroundColor="@android:color/transparent"
+    app:cardCornerRadius="10dp"
+    app:cardElevation="0dp"
+    app:strokeColor="@color/blbl_focus_stroke"
+    app:strokeWidth="2dp">
 
-    <View
-        android:id="@+id/v_selected"
-        android:layout_width="3dp"
-        android:layout_height="18dp"
-        android:layout_marginEnd="6dp"
-        android:background="@color/blbl_purple"
-        android:visibility="gone" />
-
-    <com.google.android.material.imageview.ShapeableImageView
-        android:id="@+id/iv_avatar"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
-        android:contentDescription="@string/app_name"
-        android:src="@android:drawable/sym_def_app_icon"
-        app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay_Blbl_Circular" />
-
-    <TextView
-        android:id="@+id/tv_name"
-        android:layout_width="0dp"
-        android:layout_height="24dp"
-        android:layout_marginStart="6dp"
-        android:layout_weight="1"
-        android:ellipsize="end"
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         android:gravity="center_vertical"
-        android:maxLines="1"
-        android:textColor="@color/blbl_text"
-        android:textSize="14sp" />
-</LinearLayout>
+        android:orientation="horizontal"
+        android:paddingHorizontal="6dp">
+
+        <View
+            android:id="@+id/v_selected"
+            android:layout_width="3dp"
+            android:layout_height="18dp"
+            android:layout_marginEnd="6dp"
+            android:background="@color/blbl_purple"
+            android:visibility="gone" />
+
+        <com.google.android.material.imageview.ShapeableImageView
+            android:id="@+id/iv_avatar"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:contentDescription="@string/app_name"
+            android:src="@android:drawable/sym_def_app_icon"
+            app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay_Blbl_Circular" />
+
+        <TextView
+            android:id="@+id/tv_name"
+            android:layout_width="0dp"
+            android:layout_height="24dp"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:gravity="center_vertical"
+            android:maxLines="1"
+            android:textColor="@color/blbl_text"
+            android:textSize="14sp" />
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

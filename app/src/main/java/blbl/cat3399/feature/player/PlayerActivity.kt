@@ -65,6 +65,8 @@ class PlayerActivity : AppCompatActivity() {
     private var smartSeekStreak: Int = 0
     private var smartSeekLastAtMs: Long = 0L
     private var smartSeekTotalMs: Long = 0L
+    private var tapSeekActiveDirection: Int = 0
+    private var tapSeekActiveUntilMs: Long = 0L
 
     private var currentBvid: String = ""
     private var currentCid: Long = -1L
@@ -242,6 +244,10 @@ class PlayerActivity : AppCompatActivity() {
                     focusFirstControl()
                     return true
                 }
+                if (controlsVisible) {
+                    setControlsVisible(false)
+                    return true
+                }
                 return handleBackExitOrDismiss()
             }
 
@@ -352,26 +358,48 @@ class PlayerActivity : AppCompatActivity() {
                 object : GestureDetector.SimpleOnGestureListener() {
                     override fun onDown(e: MotionEvent): Boolean = true
 
-                    override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                    override fun onDoubleTap(e: MotionEvent): Boolean {
+                        if (binding.settingsPanel.visibility == View.VISIBLE) return true
+                        if (controlsVisible) {
+                            setControlsVisible(false)
+                            return true
+                        }
                         val w = binding.playerView.width.toFloat()
-                        if (w <= 0f) return false
-                        val x = e.x
-                        return when {
-                            x < w * EDGE_TAP_THRESHOLD -> {
-                                smartSeek(direction = -1, showControls = false, hintKind = SeekHintKind.Step)
-                                true
-                            }
+                        if (w <= 0f) return true
+                        val dir = edgeDirection(e.x, w)
+                        if (dir == 0) return true
 
-                            x > w * (1f - EDGE_TAP_THRESHOLD) -> {
-                                smartSeek(direction = +1, showControls = false, hintKind = SeekHintKind.Step)
-                                true
-                            }
+                        smartSeek(direction = dir, showControls = false, hintKind = SeekHintKind.Step)
+                        tapSeekActiveDirection = dir
+                        tapSeekActiveUntilMs = SystemClock.uptimeMillis() + TAP_SEEK_ACTIVE_MS
+                        return true
+                    }
 
-                            else -> {
-                                toggleControls()
-                                true
+                    override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                        if (binding.settingsPanel.visibility == View.VISIBLE) {
+                            binding.settingsPanel.visibility = View.GONE
+                            setControlsVisible(true)
+                            focusFirstControl()
+                            return true
+                        }
+                        if (controlsVisible) {
+                            setControlsVisible(false)
+                            return true
+                        }
+
+                        val now = SystemClock.uptimeMillis()
+                        val w = binding.playerView.width.toFloat()
+                        if (w > 0f && now <= tapSeekActiveUntilMs) {
+                            val dir = edgeDirection(e.x, w)
+                            if (dir != 0 && dir == tapSeekActiveDirection) {
+                                smartSeek(direction = dir, showControls = false, hintKind = SeekHintKind.Step)
+                                tapSeekActiveUntilMs = now + TAP_SEEK_ACTIVE_MS
+                                return true
                             }
                         }
+
+                        setControlsVisible(true)
+                        return true
                     }
                 },
             )
@@ -645,6 +673,14 @@ class PlayerActivity : AppCompatActivity() {
                 delay(SEEK_HINT_HIDE_DELAY_MS)
                 binding.tvSeekHint.visibility = View.GONE
             }
+    }
+
+    private fun edgeDirection(x: Float, width: Float): Int {
+        return when {
+            x < width * EDGE_TAP_THRESHOLD -> -1
+            x > width * (1f - EDGE_TAP_THRESHOLD) -> +1
+            else -> 0
+        }
     }
 
     private fun isInteractionKey(keyCode: Int): Boolean {
@@ -1317,6 +1353,7 @@ class PlayerActivity : AppCompatActivity() {
         private const val SEEK_MAX = 10_000
         private const val AUTO_HIDE_MS = 6_000L
         private const val EDGE_TAP_THRESHOLD = 0.28f
+        private const val TAP_SEEK_ACTIVE_MS = 1_200L
         private const val SMART_SEEK_WINDOW_MS = 900L
         private const val HOLD_SPEED = 2.0f
         private const val HOLD_REWIND_TICK_MS = 260L

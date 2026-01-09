@@ -37,8 +37,18 @@ class SidebarNavAdapter(
     }
 
     fun select(id: Int, trigger: Boolean) {
+        if (selectedId == id) {
+            if (trigger) items.firstOrNull { it.id == id }?.let { onClick(it) }
+            return
+        }
+        val prevId = selectedId
         selectedId = id
-        notifyDataSetChanged()
+
+        val prevPos = items.indexOfFirst { it.id == prevId }
+        val newPos = items.indexOfFirst { it.id == id }
+        if (prevPos >= 0) notifyItemChanged(prevPos)
+        if (newPos >= 0) notifyItemChanged(newPos)
+
         if (trigger) items.firstOrNull { it.id == id }?.let { onClick(it) }
     }
 

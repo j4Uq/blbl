@@ -1,0 +1,24 @@
+package blbl.cat3399.core.ui
+
+import android.animation.AnimatorInflater
+import android.view.ViewGroup
+import blbl.cat3399.R
+import com.google.android.material.tabs.TabLayout
+
+fun TabLayout.enableDpadTabFocus(
+    onTabFocused: ((position: Int) -> Unit)? = null,
+) {
+    val tabStrip = getChildAt(0) as? ViewGroup ?: return
+    for (i in 0 until tabStrip.childCount) {
+        val index = i
+        val tabView = tabStrip.getChildAt(i)
+        tabView.isFocusable = true
+        tabView.isClickable = true
+        tabView.stateListAnimator = AnimatorInflater.loadStateListAnimator(context, R.animator.blbl_focus_scale)
+        tabView.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) return@setOnFocusChangeListener
+            getTabAt(index)?.select()
+            onTabFocused?.invoke(index)
+        }
+    }
+}

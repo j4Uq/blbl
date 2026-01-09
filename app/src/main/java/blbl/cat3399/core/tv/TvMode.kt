@@ -20,8 +20,7 @@ object TvMode {
         val pm = context.packageManager
         if (pm.hasSystemFeature(PackageManager.FEATURE_LEANBACK)) return true
         if (pm.hasSystemFeature(PackageManager.FEATURE_LEANBACK_ONLY)) return true
-        val uiModeManager = context.getSystemService(UiModeManager::class.java)
+        val uiModeManager = context.getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager
         return uiModeManager?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
     }
 }
-

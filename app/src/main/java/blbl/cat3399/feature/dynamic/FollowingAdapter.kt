@@ -21,12 +21,31 @@ class FollowingAdapter(
     private val items = ArrayList<FollowingUi>()
     private var selectedMid: Long = MID_ALL
 
+    init {
+        setHasStableIds(true)
+    }
+
     fun submit(list: List<FollowingUi>, selected: Long = MID_ALL) {
+        val prevSelected = selectedMid
+        val sameItems =
+            items.size == list.size &&
+                items.indices.all { idx -> items[idx].mid == list[idx].mid }
+
+        selectedMid = selected
+        if (sameItems) {
+            val prevPos = items.indexOfFirst { it.mid == prevSelected }
+            val newPos = items.indexOfFirst { it.mid == selectedMid }
+            if (prevPos >= 0) notifyItemChanged(prevPos)
+            if (newPos >= 0 && newPos != prevPos) notifyItemChanged(newPos)
+            return
+        }
+
         items.clear()
         items.addAll(list)
-        selectedMid = selected
         notifyDataSetChanged()
     }
+
+    override fun getItemId(position: Int): Long = items[position].mid
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Vh {
         val binding = ItemFollowingBinding.inflate(LayoutInflater.from(parent.context), parent, false)
@@ -51,6 +70,7 @@ class FollowingAdapter(
                 ImageLoader.loadInto(binding.ivAvatar, ImageUrl.avatar(item.avatarUrl))
             }
             binding.vSelected.visibility = if (selected) android.view.View.VISIBLE else android.view.View.GONE
+            binding.root.isSelected = selected
             binding.tvName.setTextColor(
                 ContextCompat.getColor(
                     binding.root.context,
