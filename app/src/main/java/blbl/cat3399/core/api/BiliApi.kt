@@ -17,6 +17,13 @@ import java.util.Locale
 object BiliApi {
     private const val TAG = "BiliApi"
 
+    data class PagedResult<T>(
+        val items: List<T>,
+        val page: Int,
+        val pages: Int,
+        val total: Int,
+    )
+
     data class RelationStat(
         val following: Long,
         val follower: Long,
@@ -42,6 +49,115 @@ object BiliApi {
 
     suspend fun nav(): JSONObject {
         return BiliClient.getJson("https://api.bilibili.com/x/web-interface/nav")
+    }
+
+    suspend fun searchDefaultText(): String? {
+        val keys = BiliClient.ensureWbiKeys()
+        val url = BiliClient.signedWbiUrl(
+            path = "/x/web-interface/wbi/search/default",
+            params = emptyMap(),
+            keys = keys,
+        )
+        val json = BiliClient.getJson(url)
+        val code = json.optInt("code", 0)
+        if (code != 0) {
+            val msg = json.optString("message", json.optString("msg", ""))
+            throw BiliApiException(apiCode = code, apiMessage = msg)
+        }
+        return json.optJSONObject("data")?.optString("show_name")?.takeIf { it.isNotBlank() }
+    }
+
+    suspend fun searchHot(limit: Int = 10): List<String> {
+        val keys = BiliClient.ensureWbiKeys()
+        val url = BiliClient.signedWbiUrl(
+            path = "/x/web-interface/wbi/search/square",
+            params = mapOf("limit" to limit.coerceIn(1, 50).toString()),
+            keys = keys,
+        )
+        val json = BiliClient.getJson(url)
+        val code = json.optInt("code", 0)
+        if (code != 0) {
+            val msg = json.optString("message", json.optString("msg", ""))
+            throw BiliApiException(apiCode = code, apiMessage = msg)
+        }
+        val list = json.optJSONObject("data")?.optJSONObject("trending")?.optJSONArray("list") ?: JSONArray()
+        return withContext(Dispatchers.Default) {
+            val out = ArrayList<String>(list.length())
+            for (i in 0 until list.length()) {
+                val obj = list.optJSONObject(i) ?: continue
+                val name = obj.optString("show_name", obj.optString("keyword", "")).trim()
+                if (name.isNotBlank()) out.add(name)
+            }
+            out
+        }
+    }
+
+    suspend fun searchSuggest(term: String): List<String> {
+        val t = term.trim()
+        if (t.isBlank()) return emptyList()
+        val url = BiliClient.withQuery(
+            "https://s.search.bilibili.com/main/suggest",
+            mapOf("term" to t, "main_ver" to "v1", "func" to "suggest", "suggest_type" to "accurate", "sub_type" to "tag"),
+        )
+        val json = BiliClient.getJson(url)
+        val code = json.optInt("code", 0)
+        if (code != 0) return emptyList()
+        val tags = json.optJSONObject("result")?.optJSONArray("tag") ?: JSONArray()
+        return withContext(Dispatchers.Default) {
+            val out = ArrayList<String>(tags.length())
+            for (i in 0 until tags.length()) {
+                val obj = tags.optJSONObject(i) ?: continue
+                val value = obj.optString("value", "").trim()
+                if (value.isNotBlank()) out.add(value)
+            }
+            out
+        }
+    }
+
+    suspend fun searchVideo(
+        keyword: String,
+        page: Int = 1,
+        order: String = "totalrank",
+    ): PagedResult<VideoCard> {
+        return searchVideoInner(keyword = keyword, page = page, order = order, allowRetry = true)
+    }
+
+    private suspend fun searchVideoInner(
+        keyword: String,
+        page: Int,
+        order: String,
+        allowRetry: Boolean,
+    ): PagedResult<VideoCard> {
+        ensureSearchCookies()
+        val keys = BiliClient.ensureWbiKeys()
+        val params = mapOf(
+            "search_type" to "video",
+            "keyword" to keyword,
+            "order" to order,
+            "page" to page.coerceAtLeast(1).toString(),
+        )
+        val url = BiliClient.signedWbiUrl(
+            path = "/x/web-interface/wbi/search/type",
+            params = params,
+            keys = keys,
+        )
+        val json = BiliClient.getJson(url)
+        val code = json.optInt("code", 0)
+        if (code != 0) {
+            val msg = json.optString("message", json.optString("msg", ""))
+            if (code == -412 && allowRetry) {
+                ensureSearchCookies(force = true)
+                return searchVideoInner(keyword = keyword, page = page, order = order, allowRetry = false)
+            }
+            throw BiliApiException(apiCode = code, apiMessage = msg)
+        }
+        val data = json.optJSONObject("data") ?: JSONObject()
+        val result = data.optJSONArray("result") ?: JSONArray()
+        val p = data.optInt("page", page)
+        val pages = data.optInt("numPages", 0)
+        val total = data.optInt("numResults", 0)
+        val cards = withContext(Dispatchers.Default) { parseSearchVideoCards(result) }
+        return PagedResult(items = cards, page = p, pages = pages, total = total)
     }
 
     suspend fun relationStat(vmid: Long): RelationStat {
@@ -258,6 +374,36 @@ object BiliApi {
         return out
     }
 
+    private fun parseSearchVideoCards(arr: JSONArray): List<VideoCard> {
+        val out = ArrayList<VideoCard>(arr.length())
+        for (i in 0 until arr.length()) {
+            val obj = arr.optJSONObject(i) ?: continue
+            val bvid = obj.optString("bvid", "")
+            if (bvid.isBlank()) continue
+            val title = stripHtmlTags(obj.optString("title", ""))
+            out.add(
+                VideoCard(
+                    bvid = bvid,
+                    cid = null,
+                    title = title,
+                    coverUrl = obj.optString("pic", ""),
+                    durationSec = parseDuration(obj.optString("duration", "0:00")),
+                    ownerName = obj.optString("author", ""),
+                    ownerFace = null,
+                    view = obj.optLong("play").takeIf { it > 0 },
+                    danmaku = obj.optLong("video_review").takeIf { it > 0 },
+                    pubDateText = null,
+                ),
+            )
+        }
+        return out
+    }
+
+    private fun stripHtmlTags(s: String): String {
+        if (s.indexOf('<') < 0) return s
+        return s.replace(Regex("<[^>]*>"), "")
+    }
+
     private fun parseDuration(durationText: String): Int {
         val parts = durationText.split(":")
         if (parts.isEmpty()) return 0
@@ -270,6 +416,11 @@ object BiliApi {
         } catch (_: Throwable) {
             0
         }
+    }
+
+    private suspend fun ensureSearchCookies(force: Boolean = false) {
+        if (!force && !BiliClient.cookies.getCookieValue("buvid3").isNullOrBlank()) return
+        runCatching { BiliClient.getBytes("https://www.bilibili.com/") }
     }
 
     suspend fun followings(vmid: Long, pn: Int = 1, ps: Int = 20): List<Following> {

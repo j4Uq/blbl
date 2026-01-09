@@ -902,8 +902,10 @@ class PlayerActivity : AppCompatActivity() {
         val url = data.optJSONArray("durl")?.optJSONObject(0)?.optString("url").orEmpty()
         if (url.isNotBlank()) return Playable.Progressive(url)
 
-        val cid = intent.getLongExtra(EXTRA_CID, -1L).takeIf { it > 0 } ?: error("cid missing for fallback")
-        val bvid = intent.getStringExtra(EXTRA_BVID).orEmpty()
+        val cid = currentCid.takeIf { it > 0 }
+            ?: intent.getLongExtra(EXTRA_CID, -1L).takeIf { it > 0 }
+            ?: error("cid missing for fallback")
+        val bvid = currentBvid.ifBlank { intent.getStringExtra(EXTRA_BVID).orEmpty() }
         // Extra fallback: request MP4 directly (avoid deprecated fnval=0).
         val fallbackJson = BiliApi.playUrlDash(bvid, cid, qn = 127, fnval = 1)
         val fallbackData = fallbackJson.optJSONObject("data") ?: JSONObject()

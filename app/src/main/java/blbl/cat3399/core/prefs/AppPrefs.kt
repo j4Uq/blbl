@@ -1,6 +1,7 @@
 package blbl.cat3399.core.prefs
 
 import android.content.Context
+import org.json.JSONArray
 
 class AppPrefs(context: Context) {
     private val prefs = context.getSharedPreferences("blbl_prefs", Context.MODE_PRIVATE)
@@ -109,6 +110,50 @@ class AppPrefs(context: Context) {
         get() = prefs.getInt(KEY_DYNAMIC_GRID_SPAN, 3)
         set(value) = prefs.edit().putInt(KEY_DYNAMIC_GRID_SPAN, value).apply()
 
+    var searchHistory: List<String>
+        get() = loadStringList(KEY_SEARCH_HISTORY)
+        set(value) = saveStringList(KEY_SEARCH_HISTORY, value)
+
+    fun addSearchHistory(keyword: String, maxSize: Int = 20) {
+        val k = keyword.trim()
+        if (k.isBlank()) return
+        val old = searchHistory
+        val out = ArrayList<String>(old.size + 1)
+        out.add(k)
+        for (item in old) {
+            if (item.equals(k, ignoreCase = true)) continue
+            out.add(item)
+            if (out.size >= maxSize) break
+        }
+        searchHistory = out
+    }
+
+    fun clearSearchHistory() {
+        prefs.edit().remove(KEY_SEARCH_HISTORY).apply()
+    }
+
+    private fun loadStringList(key: String): List<String> {
+        val raw = prefs.getString(key, null) ?: return emptyList()
+        return runCatching {
+            val arr = JSONArray(raw)
+            val out = ArrayList<String>(arr.length())
+            for (i in 0 until arr.length()) {
+                val s = arr.optString(i, "").trim()
+                if (s.isNotBlank()) out.add(s)
+            }
+            out
+        }.getOrDefault(emptyList())
+    }
+
+    private fun saveStringList(key: String, value: List<String>) {
+        val arr = JSONArray()
+        for (s in value) {
+            val v = s.trim()
+            if (v.isNotBlank()) arr.put(v)
+        }
+        prefs.edit().putString(key, arr.toString()).apply()
+    }
+
     companion object {
         const val UI_MODE_AUTO = "auto"
         const val UI_MODE_TV = "tv"
@@ -140,6 +185,7 @@ class AppPrefs(context: Context) {
         private const val KEY_PLAYER_DEBUG = "player_debug_enabled"
         private const val KEY_GRID_SPAN = "grid_span"
         private const val KEY_DYNAMIC_GRID_SPAN = "dynamic_grid_span"
+        private const val KEY_SEARCH_HISTORY = "search_history"
 
         // PC browser UA is used to reduce CDN 403 for media resources.
         const val DEFAULT_UA =

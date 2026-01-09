@@ -109,6 +109,7 @@ class SidebarNavAdapter(
     }
 
     companion object {
+        const val ID_SEARCH = 0
         const val ID_HOME = 1
         const val ID_CATEGORY = 2
         const val ID_DYNAMIC = 3

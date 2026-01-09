@@ -24,6 +24,7 @@ import blbl.cat3399.feature.category.CategoryFragment
 import blbl.cat3399.feature.dynamic.DynamicFragment
 import blbl.cat3399.feature.home.HomeFragment
 import blbl.cat3399.feature.login.QrLoginActivity
+import blbl.cat3399.feature.search.SearchFragment
 import blbl.cat3399.feature.settings.SettingsActivity
 import kotlinx.coroutines.launch
 import java.lang.ref.WeakReference
@@ -59,6 +60,7 @@ class MainActivity : AppCompatActivity() {
             onClick = { item ->
                 AppLog.d("Nav", "sidebar click id=${item.id} title=${item.title} t=${SystemClock.uptimeMillis()}")
                 when (item.id) {
+                    SidebarNavAdapter.ID_SEARCH -> showRoot(SearchFragment.newInstance())
                     SidebarNavAdapter.ID_HOME -> showRoot(HomeFragment.newInstance())
                     SidebarNavAdapter.ID_CATEGORY -> showRoot(CategoryFragment.newInstance())
                     SidebarNavAdapter.ID_DYNAMIC -> showRoot(DynamicFragment.newInstance())
@@ -71,6 +73,7 @@ class MainActivity : AppCompatActivity() {
         (binding.recyclerSidebar.itemAnimator as? SimpleItemAnimator)?.supportsChangeAnimations = false
         navAdapter.submit(
             listOf(
+                SidebarNavAdapter.NavItem(SidebarNavAdapter.ID_SEARCH, getString(R.string.tab_search), R.drawable.ic_nav_search),
                 SidebarNavAdapter.NavItem(SidebarNavAdapter.ID_HOME, getString(R.string.tab_recommend), R.drawable.ic_nav_home),
                 SidebarNavAdapter.NavItem(SidebarNavAdapter.ID_CATEGORY, getString(R.string.tab_category), R.drawable.ic_nav_category),
                 SidebarNavAdapter.NavItem(SidebarNavAdapter.ID_DYNAMIC, getString(R.string.tab_dynamic), R.drawable.ic_nav_dynamic),
