@@ -111,7 +111,7 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    private fun showSection(index: Int, keepScroll: Boolean = index == currentSectionIndex) {
+    private fun showSection(index: Int, keepScroll: Boolean = index == currentSectionIndex, focusTitle: String? = null) {
         val lm = binding.recyclerRight.layoutManager as? LinearLayoutManager
         val firstVisible = if (keepScroll) lm?.findFirstVisibleItemPosition() ?: RecyclerView.NO_POSITION else RecyclerView.NO_POSITION
         val topOffset =
@@ -176,11 +176,29 @@ class SettingsActivity : AppCompatActivity() {
             )
         }
         rightAdapter.submit(entries)
-        if (keepScroll && lm != null && firstVisible != RecyclerView.NO_POSITION) {
-            binding.recyclerRight.post {
+        val focusIndex = focusTitle?.let { title -> entries.indexOfFirst { it.title == title } } ?: RecyclerView.NO_POSITION
+        binding.recyclerRight.post {
+            if (keepScroll && lm != null && firstVisible != RecyclerView.NO_POSITION) {
                 lm.scrollToPositionWithOffset(firstVisible, topOffset)
             }
+            if (focusIndex != RecyclerView.NO_POSITION) {
+                val layoutManager = binding.recyclerRight.layoutManager as? LinearLayoutManager
+                if (layoutManager != null) {
+                    val first = layoutManager.findFirstVisibleItemPosition()
+                    val last = layoutManager.findLastVisibleItemPosition()
+                    if (focusIndex < first || focusIndex > last) {
+                        layoutManager.scrollToPositionWithOffset(focusIndex, 0)
+                    }
+                }
+                binding.recyclerRight.post {
+                    binding.recyclerRight.findViewHolderForAdapterPosition(focusIndex)?.itemView?.requestFocus()
+                }
+            }
         }
+    }
+
+    private fun refreshSection(focusTitle: String? = null) {
+        showSection(currentSectionIndex, focusTitle = focusTitle)
     }
 
     private fun onEntryClicked(entry: SettingEntry) {
@@ -194,17 +212,17 @@ class SettingsActivity : AppCompatActivity() {
                 }
                 prefs.imageQuality = next
                 Toast.makeText(this, "图片质量：$next", Toast.LENGTH_SHORT).show()
-                showSection(currentSectionIndex)
+                refreshSection(entry.title)
             }
 
-            "User-Agent" -> showUserAgentDialog(currentSectionIndex)
-            "清除登录" -> showClearLoginDialog(currentSectionIndex)
+            "User-Agent" -> showUserAgentDialog(currentSectionIndex, entry.title)
+            "清除登录" -> showClearLoginDialog(currentSectionIndex, entry.title)
 
             "以全屏模式运行" -> {
                 prefs.fullscreenEnabled = !prefs.fullscreenEnabled
                 Immersive.apply(this, prefs.fullscreenEnabled)
                 Toast.makeText(this, "全屏：${if (prefs.fullscreenEnabled) "开" else "关"}", Toast.LENGTH_SHORT).show()
-                showSection(currentSectionIndex)
+                refreshSection(entry.title)
             }
 
             "TV 模式" -> {
@@ -234,7 +252,7 @@ class SettingsActivity : AppCompatActivity() {
                 ) { selected ->
                     prefs.gridSpanCount = if (selected == "自动") 0 else (selected.toIntOrNull() ?: 0)
                     Toast.makeText(this, "每行卡片：${gridSpanText(prefs.gridSpanCount)}", Toast.LENGTH_SHORT).show()
-                    showSection(currentSectionIndex)
+                    refreshSection(entry.title)
                 }
             }
 
@@ -247,20 +265,20 @@ class SettingsActivity : AppCompatActivity() {
                 ) { selected ->
                     prefs.dynamicGridSpanCount = (selected.toIntOrNull() ?: 3).coerceIn(1, 6)
                     Toast.makeText(this, "动态每行：${gridSpanText(prefs.dynamicGridSpanCount)}", Toast.LENGTH_SHORT).show()
-                    showSection(currentSectionIndex)
+                    refreshSection(entry.title)
                 }
             }
 
             "弹幕开关" -> {
                 prefs.danmakuEnabled = !prefs.danmakuEnabled
                 Toast.makeText(this, "弹幕：${if (prefs.danmakuEnabled) "开" else "关"}", Toast.LENGTH_SHORT).show()
-                showSection(currentSectionIndex)
+                refreshSection(entry.title)
             }
 
             "默认开启字幕" -> {
                 prefs.subtitleEnabledDefault = !prefs.subtitleEnabledDefault
                 Toast.makeText(this, "默认字幕：${if (prefs.subtitleEnabledDefault) "开" else "关"}", Toast.LENGTH_SHORT).show()
-                showSection(currentSectionIndex)
+                refreshSection(entry.title)
             }
 
             "弹幕透明度" -> {
@@ -271,7 +289,7 @@ class SettingsActivity : AppCompatActivity() {
                     current = String.format(Locale.US, "%.2f", prefs.danmakuOpacity),
                 ) { selected ->
                     prefs.danmakuOpacity = selected.toFloatOrNull()?.coerceIn(0.05f, 1.0f) ?: prefs.danmakuOpacity
-                    showSection(currentSectionIndex)
+                    refreshSection(entry.title)
                 }
             }
 
@@ -283,7 +301,7 @@ class SettingsActivity : AppCompatActivity() {
                     current = prefs.danmakuTextSizeSp.toInt().toString(),
                 ) { selected ->
                     prefs.danmakuTextSizeSp = (selected.toIntOrNull() ?: 18).toFloat().coerceIn(10f, 60f)
-                    showSection(currentSectionIndex)
+                    refreshSection(entry.title)
                 }
             }
 
@@ -301,7 +319,7 @@ class SettingsActivity : AppCompatActivity() {
                 ) { selected ->
                     val value = options.firstOrNull { it.second == selected }?.first ?: 1.0f
                     prefs.danmakuArea = value
-                    showSection(currentSectionIndex)
+                    refreshSection(entry.title)
                 }
             }
 
@@ -313,18 +331,18 @@ class SettingsActivity : AppCompatActivity() {
                     current = prefs.danmakuSpeed.toString(),
                 ) { selected ->
                     prefs.danmakuSpeed = (selected.toIntOrNull() ?: 4).coerceIn(1, 10)
-                    showSection(currentSectionIndex)
+                    refreshSection(entry.title)
                 }
             }
 
             "跟随B站弹幕屏蔽" -> {
                 prefs.danmakuFollowBiliShield = !prefs.danmakuFollowBiliShield
-                showSection(currentSectionIndex)
+                refreshSection(entry.title)
             }
 
             "智能云屏蔽" -> {
                 prefs.danmakuAiShieldEnabled = !prefs.danmakuAiShieldEnabled
-                showSection(currentSectionIndex)
+                refreshSection(entry.title)
             }
 
             "智能云屏蔽等级" -> {
@@ -335,33 +353,33 @@ class SettingsActivity : AppCompatActivity() {
                     current = aiLevelText(prefs.danmakuAiShieldLevel),
                 ) { selected ->
                     prefs.danmakuAiShieldLevel = if (selected.startsWith("默认")) 0 else (selected.toIntOrNull() ?: 0)
-                    showSection(currentSectionIndex)
+                    refreshSection(entry.title)
                 }
             }
 
             "允许滚动弹幕" -> {
                 prefs.danmakuAllowScroll = !prefs.danmakuAllowScroll
-                showSection(currentSectionIndex)
+                refreshSection(entry.title)
             }
 
             "允许顶部悬停弹幕" -> {
                 prefs.danmakuAllowTop = !prefs.danmakuAllowTop
-                showSection(currentSectionIndex)
+                refreshSection(entry.title)
             }
 
             "允许底部悬停弹幕" -> {
                 prefs.danmakuAllowBottom = !prefs.danmakuAllowBottom
-                showSection(currentSectionIndex)
+                refreshSection(entry.title)
             }
 
             "允许彩色弹幕" -> {
                 prefs.danmakuAllowColor = !prefs.danmakuAllowColor
-                showSection(currentSectionIndex)
+                refreshSection(entry.title)
             }
 
             "允许特殊弹幕" -> {
                 prefs.danmakuAllowSpecial = !prefs.danmakuAllowSpecial
-                showSection(currentSectionIndex)
+                refreshSection(entry.title)
             }
 
             "默认画质" -> {
@@ -374,7 +392,7 @@ class SettingsActivity : AppCompatActivity() {
                 ) { selected ->
                     val qn = options.firstOrNull { it.second == selected }?.first
                     if (qn != null) prefs.playerPreferredQn = qn
-                    showSection(currentSectionIndex)
+                    refreshSection(entry.title)
                 }
             }
 
@@ -387,7 +405,7 @@ class SettingsActivity : AppCompatActivity() {
                 ) { selected ->
                     val id = selected.substringBefore(" ").toIntOrNull()
                     if (id != null) prefs.playerPreferredAudioId = id
-                    showSection(currentSectionIndex)
+                    refreshSection(entry.title)
                 }
             }
 
@@ -400,7 +418,7 @@ class SettingsActivity : AppCompatActivity() {
                 ) { selected ->
                     val v = selected.removeSuffix("x").toFloatOrNull()
                     if (v != null) prefs.playerSpeed = v.coerceIn(0.25f, 3.0f)
-                    showSection(currentSectionIndex)
+                    refreshSection(entry.title)
                 }
             }
 
@@ -420,7 +438,7 @@ class SettingsActivity : AppCompatActivity() {
                 ) { selected ->
                     val code = options.firstOrNull { it.second == selected }?.first ?: "auto"
                     prefs.subtitlePreferredLang = code
-                    showSection(currentSectionIndex)
+                    refreshSection(entry.title)
                 }
             }
 
@@ -432,18 +450,18 @@ class SettingsActivity : AppCompatActivity() {
                     current = prefs.playerPreferredCodec,
                 ) { selected ->
                     prefs.playerPreferredCodec = selected
-                    showSection(currentSectionIndex)
+                    refreshSection(entry.title)
                 }
             }
 
             "显示视频调试信息" -> {
                 prefs.playerDebugEnabled = !prefs.playerDebugEnabled
-                showSection(currentSectionIndex)
+                refreshSection(entry.title)
             }
 
             "播放结束双击返回" -> {
                 prefs.playerDoubleBackOnEnded = !prefs.playerDoubleBackOnEnded
-                showSection(currentSectionIndex)
+                refreshSection(entry.title)
             }
 
             else -> AppLog.i("Settings", "click ${entry.title}")
@@ -462,7 +480,7 @@ class SettingsActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun showUserAgentDialog(sectionIndex: Int) {
+    private fun showUserAgentDialog(sectionIndex: Int, focusTitle: String) {
         val prefs = BiliClient.prefs
         val input = EditText(this).apply {
             setText(prefs.userAgent)
@@ -481,18 +499,18 @@ class SettingsActivity : AppCompatActivity() {
                 }
                 prefs.userAgent = ua
                 Toast.makeText(this, "已更新 User-Agent", Toast.LENGTH_SHORT).show()
-                showSection(sectionIndex)
+                showSection(sectionIndex, focusTitle = focusTitle)
             }
             .setNeutralButton("重置默认") { _, _ ->
                 prefs.userAgent = blbl.cat3399.core.prefs.AppPrefs.DEFAULT_UA
                 Toast.makeText(this, "已重置 User-Agent", Toast.LENGTH_SHORT).show()
-                showSection(sectionIndex)
+                showSection(sectionIndex, focusTitle = focusTitle)
             }
             .setNegativeButton("取消", null)
             .show()
     }
 
-    private fun showClearLoginDialog(sectionIndex: Int) {
+    private fun showClearLoginDialog(sectionIndex: Int, focusTitle: String) {
         MaterialAlertDialogBuilder(this)
             .setTitle("清除登录")
             .setMessage("将清除 Cookie（SESSDATA 等），需要重新登录。确定继续吗？")
@@ -502,7 +520,7 @@ class SettingsActivity : AppCompatActivity() {
                 BiliClient.prefs.webCookieRefreshCheckedEpochDay = -1L
                 BiliClient.prefs.biliTicketCheckedEpochDay = -1L
                 Toast.makeText(this, "已清除 Cookie", Toast.LENGTH_SHORT).show()
-                showSection(sectionIndex)
+                showSection(sectionIndex, focusTitle = focusTitle)
             }
             .setNegativeButton("取消", null)
             .show()
