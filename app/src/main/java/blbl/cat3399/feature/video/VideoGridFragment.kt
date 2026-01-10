@@ -41,6 +41,8 @@ class VideoGridFragment : Fragment() {
 
     private var requestToken: Int = 0
 
+    private var pendingFocusFirstCardFromTab: Boolean = false
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentVideoGridBinding.inflate(inflater, container, false)
         AppLog.d("VideoGrid", "onCreateView source=$source rid=$rid t=${SystemClock.uptimeMillis()}")
@@ -119,6 +121,16 @@ class VideoGridFragment : Fragment() {
                                 false
                             }
 
+                            KeyEvent.KEYCODE_DPAD_DOWN -> {
+                                val itemView = binding.recycler.findContainingItemView(v) ?: return@setOnKeyListener false
+                                val next = FocusFinder.getInstance().findNextFocus(binding.recycler, itemView, View.FOCUS_DOWN)
+                                if (next == null || !isDescendantOf(next, binding.recycler)) {
+                                    if (!endReached) loadNextPage()
+                                    return@setOnKeyListener true
+                                }
+                                false
+                            }
+
                             else -> false
                         }
                     }
@@ -153,6 +165,7 @@ class VideoGridFragment : Fragment() {
         AppLog.d("VideoGrid", "onResume source=$source rid=$rid t=${SystemClock.uptimeMillis()}")
         (binding.recycler.layoutManager as? StaggeredGridLayoutManager)?.spanCount = spanCountForWidth()
         maybeTriggerInitialLoad()
+        maybeConsumePendingFocusFirstCardFromTab()
     }
 
     private fun maybeTriggerInitialLoad() {
@@ -212,6 +225,7 @@ class VideoGridFragment : Fragment() {
                 }
                 binding.recycler.post {
                     (binding.recycler.layoutManager as? StaggeredGridLayoutManager)?.invalidateSpanAssignments()
+                    maybeConsumePendingFocusFirstCardFromTab()
                 }
 
                 if (source == SRC_RECOMMEND) {
@@ -252,6 +266,48 @@ class VideoGridFragment : Fragment() {
             widthDp >= 800 -> 3
             else -> 2
         }
+    }
+
+    fun requestFocusFirstCardFromTab(): Boolean {
+        pendingFocusFirstCardFromTab = true
+        if (!isResumed) return true
+        return maybeConsumePendingFocusFirstCardFromTab()
+    }
+
+    private fun maybeConsumePendingFocusFirstCardFromTab(): Boolean {
+        if (!pendingFocusFirstCardFromTab) return false
+        if (!isAdded || _binding == null) return false
+        if (!isResumed) {
+            pendingFocusFirstCardFromTab = false
+            return false
+        }
+
+        val focused = activity?.currentFocus
+        val parentView = parentFragment?.view
+        val tabLayout =
+            parentView?.findViewById<com.google.android.material.tabs.TabLayout?>(blbl.cat3399.R.id.tab_layout)
+        if (focused == null || tabLayout == null || !isDescendantOf(focused, tabLayout)) {
+            pendingFocusFirstCardFromTab = false
+            return false
+        }
+
+        if (!this::adapter.isInitialized) return false
+        if (adapter.itemCount <= 0) return true
+
+        binding.recycler.post {
+            val vh = binding.recycler.findViewHolderForAdapterPosition(0)
+            if (vh != null) {
+                vh.itemView.requestFocus()
+                pendingFocusFirstCardFromTab = false
+                return@post
+            }
+            binding.recycler.scrollToPosition(0)
+            binding.recycler.post {
+                binding.recycler.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
+                pendingFocusFirstCardFromTab = false
+            }
+        }
+        return true
     }
 
     private fun focusSelectedTabIfAvailable(): Boolean {

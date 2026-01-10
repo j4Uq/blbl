@@ -3,14 +3,17 @@ package blbl.cat3399.feature.category
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.LayoutInflater
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
+import androidx.viewpager2.adapter.FragmentStateAdapter
 import com.google.android.material.tabs.TabLayoutMediator
 import blbl.cat3399.core.log.AppLog
 import blbl.cat3399.core.model.Zone
 import blbl.cat3399.core.ui.enableDpadTabFocus
 import blbl.cat3399.databinding.FragmentCategoryBinding
+import blbl.cat3399.feature.video.VideoGridFragment
 
 class CategoryFragment : Fragment() {
     private var _binding: FragmentCategoryBinding? = null
@@ -54,6 +57,16 @@ class CategoryFragment : Fragment() {
                     "tab focus pos=$position title=${zone?.title} tid=${zone?.tid} t=${SystemClock.uptimeMillis()}",
                 )
             }
+            val tabStrip = binding.tabLayout.getChildAt(0) as? ViewGroup ?: return@post
+            for (i in 0 until tabStrip.childCount) {
+                tabStrip.getChildAt(i).setOnKeyListener { _, keyCode, event ->
+                    if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                        focusCurrentPageFirstCardFromTab()
+                        return@setOnKeyListener true
+                    }
+                    false
+                }
+            }
         }
         pageCallback =
             object : androidx.viewpager2.widget.ViewPager2.OnPageChangeCallback() {
@@ -66,6 +79,19 @@ class CategoryFragment : Fragment() {
                 }
             }
         binding.viewPager.registerOnPageChangeCallback(pageCallback!!)
+    }
+
+    private fun focusCurrentPageFirstCardFromTab(): Boolean {
+        val pagerAdapter = binding.viewPager.adapter as? FragmentStateAdapter ?: return false
+        val position = binding.viewPager.currentItem
+        val itemId = pagerAdapter.getItemId(position)
+        val byTag = childFragmentManager.findFragmentByTag("f$itemId")
+        val pageFragment =
+            when {
+                byTag is VideoGridFragment -> byTag
+                else -> childFragmentManager.fragments.firstOrNull { it.isVisible && it is VideoGridFragment } as? VideoGridFragment
+            } ?: return false
+        return pageFragment.requestFocusFirstCardFromTab()
     }
 
     override fun onDestroyView() {

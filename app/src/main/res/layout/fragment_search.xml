@@ -112,9 +112,8 @@
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/recycler_keys"
                 android:layout_width="match_parent"
-                android:layout_height="0dp"
+                android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:layout_weight="1"
                 android:clipChildren="false"
                 android:clipToPadding="false" />
 
@@ -159,8 +158,7 @@
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/recycler_suggest"
                 android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1"
+                android:layout_height="wrap_content"
                 android:clipChildren="false"
                 android:clipToPadding="false"
                 android:paddingTop="4dp" />

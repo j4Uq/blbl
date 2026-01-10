@@ -303,8 +303,10 @@ class SearchFragment : Fragment() {
     }
 
     private fun updateQueryUi() {
-        val text = query.ifBlank { defaultHint ?: getString(R.string.tab_search) }
-        binding.tvQuery.text = text
+        val hintText = defaultHint ?: getString(R.string.tab_search)
+        val showingHint = query.isBlank()
+        binding.tvQuery.text = if (showingHint) hintText else query
+        binding.tvQuery.alpha = if (showingHint) 0.65f else 1f
     }
 
     private fun scheduleMiddleList(term: String) {
@@ -333,12 +335,12 @@ class SearchFragment : Fragment() {
         for (s in history) {
             val key = s.trim().lowercase()
             if (key.isBlank()) continue
-            merged.putIfAbsent(key, s)
+            if (merged[key] == null) merged[key] = s
         }
         for (s in extra) {
             val key = s.trim().lowercase()
             if (key.isBlank()) continue
-            merged.putIfAbsent(key, s)
+            if (merged[key] == null) merged[key] = s
         }
         val list = merged.values.toList()
         binding.recyclerSuggest.visibility = if (list.isNotEmpty()) View.VISIBLE else View.INVISIBLE
