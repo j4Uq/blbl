@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.text.InputType
 import android.view.KeyEvent
+import android.view.View
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
@@ -33,6 +34,13 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var leftAdapter: SettingsLeftAdapter
     private lateinit var rightAdapter: SettingsEntryAdapter
     private var testUpdateJob: Job? = null
+    private var focusListener: android.view.ViewTreeObserver.OnGlobalFocusChangeListener? = null
+
+    private var lastFocusedLeftIndex: Int = 0
+    private var lastFocusedRightTitle: String? = null
+    private var pendingRestoreRightTitle: String? = null
+    private var pendingRestoreLeftIndex: Int? = null
+    private var pendingRestoreBack: Boolean = false
 
     private val sections = listOf(
         "通用设置",
@@ -62,6 +70,30 @@ class SettingsActivity : AppCompatActivity() {
         rightAdapter = SettingsEntryAdapter { entry -> onEntryClicked(entry) }
         binding.recyclerRight.adapter = rightAdapter
         showSection(0)
+
+        focusListener =
+            android.view.ViewTreeObserver.OnGlobalFocusChangeListener { _, newFocus ->
+                if (newFocus == null) return@OnGlobalFocusChangeListener
+                when {
+                    newFocus == binding.btnBack -> {
+                        pendingRestoreBack = false
+                    }
+
+                    isDescendantOf(newFocus, binding.recyclerLeft) -> {
+                        val holder = binding.recyclerLeft.findContainingViewHolder(newFocus) ?: return@OnGlobalFocusChangeListener
+                        val pos = holder.bindingAdapterPosition.takeIf { it != RecyclerView.NO_POSITION } ?: return@OnGlobalFocusChangeListener
+                        lastFocusedLeftIndex = pos
+                        if (pendingRestoreLeftIndex == pos) pendingRestoreLeftIndex = null
+                    }
+
+                    isDescendantOf(newFocus, binding.recyclerRight) -> {
+                        val itemView = binding.recyclerRight.findContainingItemView(newFocus) ?: newFocus
+                        val title = (itemView.tag as? String)?.takeIf { it.isNotBlank() }
+                        if (title != null) lastFocusedRightTitle = title
+                        if (pendingRestoreRightTitle == title) pendingRestoreRightTitle = null
+                    }
+                }
+            }.also { binding.root.viewTreeObserver.addOnGlobalFocusChangeListener(it) }
     }
 
     override fun onResume() {
@@ -70,9 +102,16 @@ class SettingsActivity : AppCompatActivity() {
         ensureInitialFocus()
     }
 
+    override fun onDestroy() {
+        focusListener?.let { binding.root.viewTreeObserver.removeOnGlobalFocusChangeListener(it) }
+        focusListener = null
+        super.onDestroy()
+    }
+
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) Immersive.apply(this, BiliClient.prefs.fullscreenEnabled)
+        if (hasFocus) restorePendingFocus()
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -96,9 +135,8 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun ensureInitialFocus() {
         if (currentFocus != null) return
-        binding.recyclerLeft.post {
-            binding.recyclerLeft.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
-        }
+        if (restorePendingFocus()) return
+        focusLeftAt(lastFocusedLeftIndex.coerceAtLeast(0))
     }
 
     private fun dp(valueDp: Float): Int {
@@ -188,24 +226,12 @@ class SettingsActivity : AppCompatActivity() {
             )
         }
         rightAdapter.submit(entries)
-        val focusIndex = focusTitle?.let { title -> entries.indexOfFirst { it.title == title } } ?: RecyclerView.NO_POSITION
+        pendingRestoreRightTitle = focusTitle
         binding.recyclerRight.post {
             if (keepScroll && lm != null && firstVisible != RecyclerView.NO_POSITION) {
                 lm.scrollToPositionWithOffset(firstVisible, topOffset)
             }
-            if (focusIndex != RecyclerView.NO_POSITION) {
-                val layoutManager = binding.recyclerRight.layoutManager as? LinearLayoutManager
-                if (layoutManager != null) {
-                    val first = layoutManager.findFirstVisibleItemPosition()
-                    val last = layoutManager.findLastVisibleItemPosition()
-                    if (focusIndex < first || focusIndex > last) {
-                        layoutManager.scrollToPositionWithOffset(focusIndex, 0)
-                    }
-                }
-                binding.recyclerRight.post {
-                    binding.recyclerRight.findViewHolderForAdapterPosition(focusIndex)?.itemView?.requestFocus()
-                }
-            }
+            restorePendingFocus()
         }
     }
 
@@ -215,6 +241,7 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun onEntryClicked(entry: SettingEntry) {
         val prefs = BiliClient.prefs
+        pendingRestoreRightTitle = entry.title
         when (entry.title) {
             "图片质量" -> {
                 val next = when (prefs.imageQuality) {
@@ -480,6 +507,73 @@ class SettingsActivity : AppCompatActivity() {
 
             else -> AppLog.i("Settings", "click ${entry.title}")
         }
+    }
+
+    private fun restorePendingFocus(): Boolean {
+        if (pendingRestoreBack) {
+            pendingRestoreBack = false
+            binding.btnBack.requestFocus()
+            return true
+        }
+
+        val title = pendingRestoreRightTitle ?: lastFocusedRightTitle
+        if (!title.isNullOrBlank()) {
+            if (focusRightByTitle(title)) return true
+        }
+
+        val leftIndex = pendingRestoreLeftIndex ?: lastFocusedLeftIndex
+        if (focusLeftAt(leftIndex)) {
+            return true
+        }
+
+        binding.btnBack.requestFocus()
+        return true
+    }
+
+    private fun focusRightByTitle(title: String): Boolean {
+        val pos = rightAdapter.indexOfTitle(title)
+        if (pos == RecyclerView.NO_POSITION) return false
+        return focusRightAt(pos)
+    }
+
+    private fun focusRightAt(position: Int): Boolean {
+        if (position < 0 || position >= rightAdapter.itemCount) return false
+        binding.recyclerRight.post {
+            val layoutManager = binding.recyclerRight.layoutManager as? LinearLayoutManager
+            if (layoutManager != null) {
+                val first = layoutManager.findFirstVisibleItemPosition()
+                val last = layoutManager.findLastVisibleItemPosition()
+                if (position < first || position > last) {
+                    layoutManager.scrollToPositionWithOffset(position, 0)
+                }
+            }
+            binding.recyclerRight.post {
+                binding.recyclerRight.findViewHolderForAdapterPosition(position)?.itemView?.requestFocus()
+                    ?: binding.recyclerRight.requestFocus()
+            }
+        }
+        return true
+    }
+
+    private fun focusLeftAt(position: Int): Boolean {
+        if (position < 0 || position >= leftAdapter.itemCount) return false
+        binding.recyclerLeft.post {
+            binding.recyclerLeft.findViewHolderForAdapterPosition(position)?.itemView?.requestFocus()
+                ?: run {
+                    binding.recyclerLeft.scrollToPosition(position)
+                    binding.recyclerLeft.post { binding.recyclerLeft.findViewHolderForAdapterPosition(position)?.itemView?.requestFocus() }
+                }
+        }
+        return true
+    }
+
+    private fun isDescendantOf(view: View, ancestor: View): Boolean {
+        var current: View? = view
+        while (current != null) {
+            if (current == ancestor) return true
+            current = current.parent as? View
+        }
+        return false
     }
 
     private fun showTestUpdateDialog() {

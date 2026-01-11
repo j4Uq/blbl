@@ -2,6 +2,7 @@ package blbl.cat3399.feature.settings
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import blbl.cat3399.databinding.ItemSettingEntryBinding
 
@@ -10,10 +11,37 @@ class SettingsEntryAdapter(
 ) : RecyclerView.Adapter<SettingsEntryAdapter.Vh>() {
     private val items = ArrayList<SettingEntry>()
 
+    init {
+        setHasStableIds(true)
+    }
+
     fun submit(list: List<SettingEntry>) {
+        val old = items.toList()
+        val diff =
+            DiffUtil.calculateDiff(
+                object : DiffUtil.Callback() {
+                    override fun getOldListSize(): Int = old.size
+
+                    override fun getNewListSize(): Int = list.size
+
+                    override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+                        return old.getOrNull(oldItemPosition)?.title == list.getOrNull(newItemPosition)?.title
+                    }
+
+                    override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+                        return old.getOrNull(oldItemPosition) == list.getOrNull(newItemPosition)
+                    }
+                },
+            )
         items.clear()
         items.addAll(list)
-        notifyDataSetChanged()
+        diff.dispatchUpdatesTo(this)
+    }
+
+    fun indexOfTitle(title: String): Int = items.indexOfFirst { it.title == title }
+
+    override fun getItemId(position: Int): Long {
+        return items.getOrNull(position)?.title?.hashCode()?.toLong() ?: RecyclerView.NO_ID
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Vh {
@@ -27,6 +55,7 @@ class SettingsEntryAdapter(
 
     class Vh(private val binding: ItemSettingEntryBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind(item: SettingEntry, onClick: (SettingEntry) -> Unit) {
+            binding.root.tag = item.title
             binding.tvTitle.text = item.title
             binding.tvValue.text = item.value
             if (item.desc.isNullOrBlank()) {
@@ -39,4 +68,3 @@ class SettingsEntryAdapter(
         }
     }
 }
-
