@@ -1,13 +1,60 @@
 # blbl-android
 
-第三方哔哩哔哩安卓 App（初始版本骨架），对齐仓库根目录的 `BILI_THIRD_PARTY_ANDROID_APP_SPEC.md` 与 `example-pic/`。
+第三方哔哩哔哩安卓 App，支持触摸、遥控，以及安卓5。
+
+## 功能概览
+
+- 侧边栏导航：搜索 / 推荐 / 分类 / 动态 / 我的
+- 扫码登录入口
+- 视频播放：Media3(ExoPlayer)，支持分辨率/编码/倍速/字幕/弹幕等设置
+- 设置页：播放与弹幕偏好等
+
+## 技术栈
+
+- Kotlin + AndroidX + ViewBinding
+- Media3(ExoPlayer)
+- OkHttp
+- Protobuf-lite
+- Material / RecyclerView / ViewPager2
 
 ## 构建
 
-- `cd blbl-android`
-- `./gradlew :app:assembleDebug`
+环境要求：JDK 17，Android SDK（compileSdk 36）。
 
-## 运行
+调试包：
 
-建议用 Android Studio 打开 `blbl-android/`，连接设备/模拟器运行 `app`。
+```
+./gradlew assembleDebug
+```
 
+发布包（已开启 R8 混淆 + 资源压缩）：
+
+```
+./gradlew assembleRelease
+```
+
+可选版本参数（本地或 CI）：
+
+```
+./gradlew assembleRelease -PversionName=0.1.1 -PversionCode=2
+```
+
+## GitHub Actions
+
+仓库包含两套手动触发的工作流：
+
+- Android Debug：手动输入 `version_name`
+- Android Release：同上，额外需要签名 Secrets
+
+需要在仓库 Secrets 中配置：
+
+- `RELEASE_KEYSTORE_BASE64`
+- `RELEASE_STORE_PASSWORD`
+- `RELEASE_KEY_ALIAS`
+- `RELEASE_KEY_PASSWORD`
+
+生成 keystore 的 base64 示例：
+
+```
+base64 -w 0 keystore/release.keystore
+```
