@@ -29,6 +29,7 @@ import blbl.cat3399.databinding.ActivityMainBinding
 import blbl.cat3399.databinding.DialogUserInfoBinding
 import blbl.cat3399.feature.category.CategoryFragment
 import blbl.cat3399.feature.dynamic.DynamicFragment
+import blbl.cat3399.feature.following.FollowingListActivity
 import blbl.cat3399.feature.home.HomeFragment
 import blbl.cat3399.feature.live.LiveFragment
 import blbl.cat3399.feature.login.QrLoginActivity
@@ -226,8 +227,13 @@ class MainActivity : AppCompatActivity() {
 
         userInfoOverlay.root.setOnClickListener { hideUserInfoOverlay() }
         userInfoOverlay.card.setOnClickListener { /* consume */ }
-        userInfoOverlay.btnFollowing.setOnClickListener { /* TODO */ }
-        userInfoOverlay.btnFollower.setOnClickListener { /* TODO */ }
+        userInfoOverlay.btnFollowing.setOnClickListener {
+            hideUserInfoOverlay()
+            startActivity(Intent(this, FollowingListActivity::class.java))
+        }
+        userInfoOverlay.btnFollower.setOnClickListener {
+            Toast.makeText(this, "粉丝列表未实现", Toast.LENGTH_SHORT).show()
+        }
         userInfoOverlay.btnLogout.setOnClickListener { showLogoutConfirm() }
 
         val invalidateOverlay = View.OnFocusChangeListener { _, _ ->

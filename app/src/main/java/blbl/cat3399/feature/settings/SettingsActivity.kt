@@ -212,6 +212,7 @@ class SettingsActivity : AppCompatActivity() {
                 SettingEntry("默认音轨", audioText(prefs.playerPreferredAudioId), "30280/30232/30216/30250/30251"),
                 SettingEntry("CDN线路", cdnText(prefs.playerCdnPreference), "优先选择匹配域名的播放 URL（匹配失败回退）"),
                 SettingEntry("默认播放速度", String.format(Locale.US, "%.2fx", prefs.playerSpeed), null),
+                SettingEntry("播放模式", playbackModeText(prefs.playerPlaybackMode), "播放结束后的动作（循环/下一条/退出）"),
                 SettingEntry("字幕语言", subtitleLangText(prefs.subtitlePreferredLang), "自动/优先匹配"),
                 SettingEntry("默认开启字幕", if (prefs.subtitleEnabledDefault) "开" else "关", "进入播放页时默认状态"),
                 SettingEntry("视频编码", prefs.playerPreferredCodec, "AVC/HEVC/AV1"),
@@ -517,6 +518,24 @@ class SettingsActivity : AppCompatActivity() {
                 ) { selected ->
                     val v = selected.removeSuffix("x").toFloatOrNull()
                     if (v != null) prefs.playerSpeed = v.coerceIn(0.25f, 3.0f)
+                    refreshSection(entry.title)
+                }
+            }
+
+            "播放模式" -> {
+                val options = listOf("循环当前", "播放下一个", "什么都不做", "退出播放器")
+                showChoiceDialog(
+                    title = "播放模式（全局默认）",
+                    items = options,
+                    current = playbackModeText(prefs.playerPlaybackMode),
+                ) { selected ->
+                    prefs.playerPlaybackMode =
+                        when (selected) {
+                            "循环当前" -> blbl.cat3399.core.prefs.AppPrefs.PLAYER_PLAYBACK_MODE_LOOP_ONE
+                            "播放下一个" -> blbl.cat3399.core.prefs.AppPrefs.PLAYER_PLAYBACK_MODE_NEXT
+                            "退出播放器" -> blbl.cat3399.core.prefs.AppPrefs.PLAYER_PLAYBACK_MODE_EXIT
+                            else -> blbl.cat3399.core.prefs.AppPrefs.PLAYER_PLAYBACK_MODE_NONE
+                        }
                     refreshSection(entry.title)
                 }
             }
@@ -955,6 +974,13 @@ class SettingsActivity : AppCompatActivity() {
     private fun cdnText(code: String): String = when (code) {
         blbl.cat3399.core.prefs.AppPrefs.PLAYER_CDN_MCDN -> "mcdn"
         else -> "bilivideo"
+    }
+
+    private fun playbackModeText(code: String): String = when (code) {
+        blbl.cat3399.core.prefs.AppPrefs.PLAYER_PLAYBACK_MODE_LOOP_ONE -> "循环当前"
+        blbl.cat3399.core.prefs.AppPrefs.PLAYER_PLAYBACK_MODE_NEXT -> "播放下一个"
+        blbl.cat3399.core.prefs.AppPrefs.PLAYER_PLAYBACK_MODE_EXIT -> "退出播放器"
+        else -> "什么都不做"
     }
 
     private fun qnText(qn: Int): String = when (qn) {

@@ -21,6 +21,8 @@ import blbl.cat3399.databinding.FragmentDynamicBinding
 import blbl.cat3399.databinding.FragmentDynamicLoginBinding
 import blbl.cat3399.feature.login.QrLoginActivity
 import blbl.cat3399.feature.player.PlayerActivity
+import blbl.cat3399.feature.player.PlayerPlaylistItem
+import blbl.cat3399.feature.player.PlayerPlaylistStore
 import blbl.cat3399.feature.video.VideoCardAdapter
 import kotlinx.coroutines.launch
 
@@ -67,11 +69,22 @@ class DynamicFragment : Fragment() {
         followAdapter.setTvMode(TvMode.isEnabled(requireContext()))
         applyUiMode()
 
-        videoAdapter = VideoCardAdapter { card ->
+        videoAdapter = VideoCardAdapter { card, pos ->
+            val playlistItems =
+                videoAdapter.snapshot().map {
+                    PlayerPlaylistItem(
+                        bvid = it.bvid,
+                        cid = it.cid,
+                        title = it.title,
+                    )
+                }
+            val token = PlayerPlaylistStore.put(items = playlistItems, index = pos, source = "Dynamic")
             startActivity(
                 Intent(requireContext(), PlayerActivity::class.java)
                     .putExtra(PlayerActivity.EXTRA_BVID, card.bvid)
-                    .putExtra(PlayerActivity.EXTRA_CID, -1L),
+                    .putExtra(PlayerActivity.EXTRA_CID, card.cid ?: -1L)
+                    .putExtra(PlayerActivity.EXTRA_PLAYLIST_TOKEN, token)
+                    .putExtra(PlayerActivity.EXTRA_PLAYLIST_INDEX, pos),
             )
         }
         videoAdapter.setTvMode(TvMode.isEnabled(requireContext()))

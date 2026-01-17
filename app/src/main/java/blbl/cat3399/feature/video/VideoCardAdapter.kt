@@ -14,7 +14,7 @@ import blbl.cat3399.core.util.Format
 import blbl.cat3399.databinding.ItemVideoCardBinding
 
 class VideoCardAdapter(
-    private val onClick: (VideoCard) -> Unit,
+    private val onClick: (VideoCard, Int) -> Unit,
 ) : RecyclerView.Adapter<VideoCardAdapter.Vh>() {
     private val items = ArrayList<VideoCard>()
     private var tvMode: Boolean = false
@@ -42,6 +42,8 @@ class VideoCardAdapter(
         notifyItemRangeInserted(start, list.size)
     }
 
+    fun snapshot(): List<VideoCard> = items.toList()
+
     override fun getItemId(position: Int): Long = items[position].bvid.hashCode().toLong()
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Vh {
@@ -56,7 +58,7 @@ class VideoCardAdapter(
     class Vh(private val binding: ItemVideoCardBinding) : RecyclerView.ViewHolder(binding.root) {
         private var lastTvMode: Boolean? = null
 
-        fun bind(item: VideoCard, tvMode: Boolean, onClick: (VideoCard) -> Unit) {
+        fun bind(item: VideoCard, tvMode: Boolean, onClick: (VideoCard, Int) -> Unit) {
             if (lastTvMode != tvMode) {
                 applySizing(tvMode)
                 lastTvMode = tvMode
@@ -74,7 +76,10 @@ class VideoCardAdapter(
             binding.tvDanmaku.text = Format.count(item.danmaku)
             ImageLoader.loadInto(binding.ivCover, ImageUrl.cover(item.coverUrl))
 
-            binding.root.setOnClickListener { onClick(item) }
+            binding.root.setOnClickListener {
+                val pos = bindingAdapterPosition.takeIf { it != RecyclerView.NO_POSITION } ?: return@setOnClickListener
+                onClick(item, pos)
+            }
         }
 
         private fun applySizing(tvMode: Boolean) {

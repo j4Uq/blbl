@@ -19,6 +19,8 @@ import blbl.cat3399.R
 import blbl.cat3399.core.tv.TvMode
 import blbl.cat3399.databinding.FragmentMyFavFolderDetailBinding
 import blbl.cat3399.feature.player.PlayerActivity
+import blbl.cat3399.feature.player.PlayerPlaylistItem
+import blbl.cat3399.feature.player.PlayerPlaylistStore
 import blbl.cat3399.feature.video.VideoCardAdapter
 import kotlinx.coroutines.launch
 
@@ -51,11 +53,22 @@ class MyFavFolderDetailFragment : Fragment() {
 
         if (!::adapter.isInitialized) {
             adapter =
-                VideoCardAdapter { card ->
+                VideoCardAdapter { card, pos ->
+                    val playlistItems =
+                        adapter.snapshot().map {
+                            PlayerPlaylistItem(
+                                bvid = it.bvid,
+                                cid = it.cid,
+                                title = it.title,
+                            )
+                        }
+                    val token = PlayerPlaylistStore.put(items = playlistItems, index = pos, source = "MyFavFolderDetail:$mediaId")
                     startActivity(
                         Intent(requireContext(), PlayerActivity::class.java)
                             .putExtra(PlayerActivity.EXTRA_BVID, card.bvid)
-                            .putExtra(PlayerActivity.EXTRA_CID, card.cid ?: -1L),
+                            .putExtra(PlayerActivity.EXTRA_CID, card.cid ?: -1L)
+                            .putExtra(PlayerActivity.EXTRA_PLAYLIST_TOKEN, token)
+                            .putExtra(PlayerActivity.EXTRA_PLAYLIST_INDEX, pos),
                     )
                 }
         }

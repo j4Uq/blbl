@@ -180,6 +180,14 @@ object BiliApi {
         val cursor: HistoryCursor?,
     )
 
+    data class SpaceAccInfo(
+        val mid: Long,
+        val name: String,
+        val faceUrl: String?,
+        val sign: String?,
+        val isFollowed: Boolean,
+    )
+
     data class HasMorePage<T>(
         val items: List<T>,
         val page: Int,
@@ -1378,9 +1386,17 @@ object BiliApi {
     }
 
     suspend fun followings(vmid: Long, pn: Int = 1, ps: Int = 20): List<Following> {
+        return followingsPage(vmid = vmid, pn = pn, ps = ps).items
+    }
+
+    suspend fun followingsPage(vmid: Long, pn: Int = 1, ps: Int = 50): HasMorePage<Following> {
         val url = BiliClient.withQuery(
             "https://api.bilibili.com/x/relation/followings",
-            mapOf("vmid" to vmid.toString(), "pn" to pn.toString(), "ps" to ps.toString()),
+            mapOf(
+                "vmid" to vmid.toString(),
+                "pn" to pn.coerceAtLeast(1).toString(),
+                "ps" to ps.coerceIn(1, 50).toString(),
+            ),
         )
         val json = BiliClient.getJson(
             url,
@@ -1388,7 +1404,17 @@ object BiliApi {
                 "Referer" to "https://www.bilibili.com/",
             ),
         )
-        val list = json.optJSONObject("data")?.optJSONArray("list") ?: JSONArray()
+        val code = json.optInt("code", 0)
+        if (code != 0) {
+            val msg = json.optString("message", json.optString("msg", ""))
+            throw BiliApiException(apiCode = code, apiMessage = msg)
+        }
+
+        val data = json.optJSONObject("data") ?: JSONObject()
+        val list = data.optJSONArray("list") ?: JSONArray()
+        val total = data.optInt("total", 0)
+        val page = pn.coerceAtLeast(1)
+        val pageSize = ps.coerceIn(1, 50)
         return withContext(Dispatchers.Default) {
             val out = ArrayList<Following>(list.length())
             for (i in 0 until list.length()) {
@@ -1398,11 +1424,17 @@ object BiliApi {
                         mid = obj.optLong("mid"),
                         name = obj.optString("uname", ""),
                         avatarUrl = obj.optString("face").takeIf { it.isNotBlank() },
+                        sign = obj.optString("sign").trim().takeIf { it.isNotBlank() },
                     ),
                 )
             }
-            AppLog.d(TAG, "followings vmid=$vmid size=${out.size}")
-            out
+            AppLog.d(TAG, "followings vmid=$vmid page=$page size=${out.size} total=$total")
+            HasMorePage(
+                items = out,
+                page = page,
+                hasMore = out.isNotEmpty() && page * pageSize < total,
+                total = total,
+            )
         }
     }
 
@@ -1506,6 +1538,52 @@ object BiliApi {
             val next = data.optString("offset", "").takeIf { it.isNotBlank() }
             AppLog.d(TAG, "dynamicSpaceVideo hostMid=$hostMid size=${cards.size} nextOffset=${next?.take(8)}")
             DynamicPage(cards, next)
+        }
+    }
+
+    suspend fun spaceAccInfo(mid: Long): SpaceAccInfo {
+        val keys = BiliClient.ensureWbiKeys()
+        val url = BiliClient.signedWbiUrl(
+            path = "/x/space/wbi/acc/info",
+            params = mapOf("mid" to mid.toString()),
+            keys = keys,
+        )
+        val json = BiliClient.getJson(url)
+        val code = json.optInt("code", 0)
+        if (code != 0) {
+            val msg = json.optString("message", json.optString("msg", ""))
+            throw BiliApiException(apiCode = code, apiMessage = msg)
+        }
+        val data = json.optJSONObject("data") ?: JSONObject()
+        return SpaceAccInfo(
+            mid = data.optLong("mid").takeIf { it > 0 } ?: mid,
+            name = data.optString("name", ""),
+            faceUrl = data.optString("face").trim().takeIf { it.isNotBlank() },
+            sign = data.optString("sign").trim().takeIf { it.isNotBlank() },
+            isFollowed = data.optBoolean("is_followed", false),
+        )
+    }
+
+    suspend fun modifyRelation(
+        fid: Long,
+        act: Int,
+        reSrc: Int = 11,
+    ) {
+        val csrf = BiliClient.cookies.getCookieValue("bili_jct").orEmpty()
+        if (csrf.isBlank()) throw BiliApiException(apiCode = -111, apiMessage = "missing_csrf")
+        val url = "https://api.bilibili.com/x/relation/modify"
+        val form =
+            buildMap {
+                put("fid", fid.toString())
+                put("act", act.toString())
+                if (reSrc > 0) put("re_src", reSrc.toString())
+                put("csrf", csrf)
+            }
+        val json = BiliClient.postFormJson(url, form)
+        val code = json.optInt("code", 0)
+        if (code != 0) {
+            val msg = json.optString("message", json.optString("msg", ""))
+            throw BiliApiException(apiCode = code, apiMessage = msg)
         }
     }
 

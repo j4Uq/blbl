@@ -79,6 +79,8 @@ class LivePlayerActivity : AppCompatActivity() {
         binding.tvTime.visibility = View.GONE
         binding.btnSubtitle.visibility = View.GONE
         binding.tvSeekHint.visibility = View.GONE
+        binding.btnPrev.visibility = View.GONE
+        binding.btnNext.visibility = View.GONE
         binding.btnRew.visibility = View.GONE
         binding.btnFfwd.visibility = View.GONE
 

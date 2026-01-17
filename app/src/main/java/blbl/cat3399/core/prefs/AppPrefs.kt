@@ -142,6 +142,10 @@ class AppPrefs(context: Context) {
         get() = prefs.getBoolean(KEY_PLAYER_DOUBLE_BACK_ON_ENDED, true)
         set(value) = prefs.edit().putBoolean(KEY_PLAYER_DOUBLE_BACK_ON_ENDED, value).apply()
 
+    var playerPlaybackMode: String
+        get() = prefs.getString(KEY_PLAYER_PLAYBACK_MODE, PLAYER_PLAYBACK_MODE_NONE) ?: PLAYER_PLAYBACK_MODE_NONE
+        set(value) = prefs.edit().putString(KEY_PLAYER_PLAYBACK_MODE, value).apply()
+
     var gridSpanCount: Int
         get() = prefs.getInt(KEY_GRID_SPAN, 0) // 0 => auto
         set(value) = prefs.edit().putInt(KEY_GRID_SPAN, value).apply()
@@ -246,6 +250,7 @@ class AppPrefs(context: Context) {
         private const val KEY_FULLSCREEN = "fullscreen_enabled"
         private const val KEY_PLAYER_DEBUG = "player_debug_enabled"
         private const val KEY_PLAYER_DOUBLE_BACK_ON_ENDED = "player_double_back_on_ended"
+        private const val KEY_PLAYER_PLAYBACK_MODE = "player_playback_mode"
         private const val KEY_GRID_SPAN = "grid_span"
         private const val KEY_DYNAMIC_GRID_SPAN = "dynamic_grid_span"
         private const val KEY_SEARCH_HISTORY = "search_history"
@@ -258,6 +263,11 @@ class AppPrefs(context: Context) {
 
         const val PLAYER_CDN_BILIVIDEO = "bilivideo"
         const val PLAYER_CDN_MCDN = "mcdn"
+
+        const val PLAYER_PLAYBACK_MODE_LOOP_ONE = "loop_one"
+        const val PLAYER_PLAYBACK_MODE_NEXT = "next"
+        const val PLAYER_PLAYBACK_MODE_NONE = "none"
+        const val PLAYER_PLAYBACK_MODE_EXIT = "exit"
 
         private fun generateBuvid(): String {
             val bytes = ByteArray(16)

@@ -46,6 +46,7 @@ import blbl.cat3399.core.ui.SingleChoiceDialog
 import blbl.cat3399.feature.settings.SettingsActivity
 import blbl.cat3399.databinding.ActivityPlayerBinding
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.async
@@ -74,6 +75,9 @@ class PlayerActivity : AppCompatActivity() {
     private var finishOnBackKeyUp: Boolean = false
     private var holdPrevSpeed: Float = 1.0f
     private var holdPrevPlayWhenReady: Boolean = false
+    private var loadJob: kotlinx.coroutines.Job? = null
+    private var lastEndedActionAtMs: Long = 0L
+    private var playbackUncaughtHandler: CoroutineExceptionHandler? = null
 
     private var smartSeekDirection: Int = 0
     private var smartSeekStreak: Int = 0
@@ -87,6 +91,10 @@ class PlayerActivity : AppCompatActivity() {
     private var currentCid: Long = -1L
     private var currentEpId: Long? = null
     private var currentAid: Long? = null
+
+    private var playlistToken: String? = null
+    private var playlistItems: List<PlayerPlaylistItem> = emptyList()
+    private var playlistIndex: Int = -1
     private lateinit var session: PlayerSessionSettings
     private var subtitleAvailable: Boolean = false
     private var subtitleConfig: MediaItem.SubtitleConfiguration? = null
@@ -138,6 +146,17 @@ class PlayerActivity : AppCompatActivity() {
         val cidExtra = intent.getLongExtra(EXTRA_CID, -1L).takeIf { it > 0 }
         val epIdExtra = intent.getLongExtra(EXTRA_EP_ID, -1L).takeIf { it > 0 }
         val aidExtra = intent.getLongExtra(EXTRA_AID, -1L).takeIf { it > 0 }
+        playlistToken = intent.getStringExtra(EXTRA_PLAYLIST_TOKEN)?.trim()?.takeIf { it.isNotBlank() }
+        playlistIndex = intent.getIntExtra(EXTRA_PLAYLIST_INDEX, -1)
+        playlistToken?.let { token ->
+            val p = PlayerPlaylistStore.get(token)
+            if (p != null && p.items.isNotEmpty()) {
+                playlistItems = p.items
+                val idx = playlistIndex.takeIf { it in playlistItems.indices } ?: p.index
+                playlistIndex = idx.coerceIn(0, playlistItems.lastIndex)
+                PlayerPlaylistStore.updateIndex(token, playlistIndex)
+            }
+        }
         trace =
             PlaybackTrace(
                 buildString {
@@ -162,6 +181,7 @@ class PlayerActivity : AppCompatActivity() {
             preferAudioId = prefs.playerPreferredAudioId,
             preferredQn = prefs.playerPreferredQn,
             targetQn = 0,
+            playbackModeOverride = null,
             subtitleEnabled = prefs.subtitleEnabledDefault,
             subtitleLangOverride = null,
             danmaku = DanmakuSessionSettings(
@@ -174,7 +194,6 @@ class PlayerActivity : AppCompatActivity() {
             debugEnabled = prefs.playerDebugEnabled,
         )
 
-        val okHttpFactory = OkHttpDataSource.Factory(BiliClient.cdnOkHttp)
         val exo = ExoPlayer.Builder(this).build()
         player = exo
         binding.playerView.player = exo
@@ -183,6 +202,7 @@ class PlayerActivity : AppCompatActivity() {
         binding.danmakuView.setConfigProvider { session.danmaku.toConfig() }
         configureSubtitleView()
         exo.setPlaybackSpeed(session.playbackSpeed)
+        applyPlaybackMode(exo)
         // Subtitle enabled state follows session (default from global prefs).
         applySubtitleEnabled(exo)
         exo.addListener(object : Player.Listener {
@@ -224,6 +244,9 @@ class PlayerActivity : AppCompatActivity() {
                         else -> playbackState.toString()
                     }
                 trace?.log("exo:state", "state=$state pos=${exo.currentPosition}ms")
+                if (playbackState == Player.STATE_ENDED) {
+                    handlePlaybackEnded(exo)
+                }
             }
 
             override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
@@ -244,6 +267,7 @@ class PlayerActivity : AppCompatActivity() {
                 "分辨率" -> showResolutionDialog()
                 "视频编码" -> showCodecDialog()
                 "播放速度" -> showSpeedDialog()
+                "播放模式" -> showPlaybackModeDialog()
                 "字幕语言" -> showSubtitleLangDialog()
                 "弹幕透明度" -> showDanmakuOpacityDialog()
                 "弹幕字号" -> showDanmakuTextSizeDialog()
@@ -270,107 +294,352 @@ class PlayerActivity : AppCompatActivity() {
                 Toast.makeText(this@PlayerActivity, "播放失败：${t.message}", Toast.LENGTH_LONG).show()
                 finish()
             }
-
-        lifecycleScope.launch(uncaughtHandler) {
-            try {
-                trace?.log("view:start")
-                val viewJson = async(Dispatchers.IO) { runCatching { BiliApi.view(bvid) }.getOrNull() }
-                val viewData = viewJson.await()?.optJSONObject("data") ?: JSONObject()
-                trace?.log("view:done")
-                val title = viewData.optString("title", "")
-                if (title.isNotBlank()) binding.tvTitle.text = title
-
-                val cid = cidExtra ?: viewData.optLong("cid").takeIf { it > 0 } ?: error("cid missing")
-                val aid = viewData.optLong("aid").takeIf { it > 0 }
-                currentAid = currentAid ?: aid
-                currentCid = cid
-                AppLog.i("Player", "start bvid=$bvid cid=$cid")
-                trace?.log("cid:resolved", "cid=$cid aid=${aid ?: -1}")
-
-                requestOnlineWatchingText(bvid = bvid, cid = cid)
-
-                val playJob =
-                    async {
-                        val (qn, fnval) = playUrlParamsForSession()
-                        trace?.log("playurl:start", "qn=$qn fnval=$fnval")
-                        playbackConstraints = PlaybackConstraints()
-                        decodeFallbackAttempted = false
-                        lastPickedDash = null
-                        loadPlayableWithTryLookFallback(
-                            bvid = bvid,
-                            cid = cid,
-                            epId = currentEpId,
-                            qn = qn,
-                            fnval = fnval,
-                            constraints = playbackConstraints,
-                        ).also { trace?.log("playurl:done") }
-                    }
-                val dmJob =
-                    async(Dispatchers.IO) {
-                        trace?.log("danmakuMeta:start")
-                        prepareDanmakuMeta(cid, currentAid ?: aid, trace)
-                            .also { trace?.log("danmakuMeta:done", "segTotal=${it.segmentTotal} segMs=${it.segmentSizeMs}") }
-                    }
-                val subJob =
-                    async(Dispatchers.IO) {
-                        trace?.log("subtitle:start")
-                        prepareSubtitleConfig(viewData, bvid, cid, trace)
-                            .also { trace?.log("subtitle:done", "ok=${it != null}") }
-                    }
-
-                trace?.log("playurl:await")
-                val (playJson, playable) = playJob.await()
-                trace?.log("playurl:awaitDone")
-                showRiskControlBypassHintIfNeeded(playJson)
-                lastAvailableQns = parseDashVideoQnList(playJson)
-                trace?.log("subtitle:await")
-                subtitleConfig = subJob.await()
-                trace?.log("subtitle:awaitDone", "ok=${subtitleConfig != null}")
-                subtitleAvailable = subtitleConfig != null
-                (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
-                applySubtitleEnabled(exo)
-                trace?.log("exo:setMediaSource:start")
-                when (playable) {
-                    is Playable.Dash -> {
-                        lastPickedDash = playable
-                        AppLog.i(
-                            "Player",
-                            "picked DASH qn=${playable.qn} codecid=${playable.codecid} dv=${playable.isDolbyVision} a=${playable.audioKind}(${playable.audioId}) video=${playable.videoUrl.take(40)}",
-                        )
-                        exo.setMediaSource(buildMerged(okHttpFactory, playable.videoUrl, playable.audioUrl, subtitleConfig))
-                        applyResolutionFallbackIfNeeded(requestedQn = session.targetQn, actualQn = playable.qn)
-                    }
-                    is Playable.Progressive -> {
-                        lastPickedDash = null
-                        AppLog.i("Player", "picked Progressive url=${playable.url.take(60)}")
-                        exo.setMediaSource(buildProgressive(okHttpFactory, playable.url, subtitleConfig))
-                    }
-                }
-                trace?.log("exo:setMediaSource:done")
-                trace?.log("exo:prepare")
-                exo.prepare()
-                trace?.log("exo:playWhenReady")
-                exo.playWhenReady = true
-                updateSubtitleButton()
-
-                trace?.log("danmakuMeta:await")
-                val dmMeta = dmJob.await()
-                trace?.log("danmakuMeta:awaitDone")
-                applyDanmakuMeta(dmMeta)
-                requestDanmakuSegmentsForPosition(exo.currentPosition.coerceAtLeast(0L), immediate = true)
-            } catch (t: Throwable) {
-                AppLog.e("Player", "start failed", t)
-                if (!handlePlayUrlErrorIfNeeded(t)) {
-                    Toast.makeText(this@PlayerActivity, "加载播放信息失败：${t.message}", Toast.LENGTH_LONG).show()
-                }
-            }
-        }
+        playbackUncaughtHandler = uncaughtHandler
+        startPlayback(
+            bvid = bvid,
+            cidExtra = cidExtra,
+            epIdExtra = epIdExtra,
+            aidExtra = aidExtra,
+            initialTitle = playlistItems.getOrNull(playlistIndex)?.title,
+        )
     }
 
     private data class PlayFetchResult(
         val json: JSONObject,
         val playable: Playable,
     )
+
+    private fun updatePlaylistControls() {
+        val enabled = playlistItems.size >= 2 && playlistIndex in playlistItems.indices
+        val alpha = if (enabled) 1.0f else 0.35f
+        binding.btnPrev.isEnabled = enabled
+        binding.btnNext.isEnabled = enabled
+        binding.btnPrev.alpha = alpha
+        binding.btnNext.alpha = alpha
+    }
+
+    private fun resolvedPlaybackMode(): String {
+        val prefs = BiliClient.prefs
+        return session.playbackModeOverride ?: prefs.playerPlaybackMode
+    }
+
+    private fun playbackModeLabel(code: String): String = when (code) {
+        AppPrefs.PLAYER_PLAYBACK_MODE_LOOP_ONE -> "循环当前"
+        AppPrefs.PLAYER_PLAYBACK_MODE_NEXT -> "播放下一个"
+        AppPrefs.PLAYER_PLAYBACK_MODE_EXIT -> "退出播放器"
+        else -> "什么都不做"
+    }
+
+    private fun playbackModeSubtitle(): String {
+        val prefs = BiliClient.prefs
+        val globalLabel = playbackModeLabel(prefs.playerPlaybackMode)
+        val override = session.playbackModeOverride
+        return if (override == null) {
+            "全局：$globalLabel"
+        } else {
+            playbackModeLabel(override)
+        }
+    }
+
+    private fun applyPlaybackMode(exo: ExoPlayer) {
+        exo.repeatMode =
+            when (resolvedPlaybackMode()) {
+                AppPrefs.PLAYER_PLAYBACK_MODE_LOOP_ONE -> Player.REPEAT_MODE_ONE
+                else -> Player.REPEAT_MODE_OFF
+            }
+    }
+
+    private fun showPlaybackModeDialog() {
+        val exo = player ?: return
+        val prefs = BiliClient.prefs
+        val global = prefs.playerPlaybackMode
+        val globalLabel = playbackModeLabel(global)
+        val items = listOf(
+            "跟随全局（$globalLabel）",
+            "循环当前",
+            "播放下一个",
+            "什么都不做",
+            "退出播放器",
+        )
+        val currentLabel =
+            when (session.playbackModeOverride) {
+                null -> "跟随全局（$globalLabel）"
+                AppPrefs.PLAYER_PLAYBACK_MODE_LOOP_ONE -> "循环当前"
+                AppPrefs.PLAYER_PLAYBACK_MODE_NEXT -> "播放下一个"
+                AppPrefs.PLAYER_PLAYBACK_MODE_EXIT -> "退出播放器"
+                else -> "什么都不做"
+            }
+        val checked = items.indexOf(currentLabel).coerceAtLeast(0)
+        SingleChoiceDialog.show(
+            context = this,
+            title = "播放模式（本次播放）",
+            items = items,
+            checkedIndex = checked,
+            negativeText = "取消",
+        ) { which, _ ->
+            val chosen = items.getOrNull(which).orEmpty()
+            session =
+                when {
+                    chosen.startsWith("跟随全局") -> session.copy(playbackModeOverride = null)
+                    chosen.startsWith("循环") -> session.copy(playbackModeOverride = AppPrefs.PLAYER_PLAYBACK_MODE_LOOP_ONE)
+                    chosen.startsWith("播放下一个") -> session.copy(playbackModeOverride = AppPrefs.PLAYER_PLAYBACK_MODE_NEXT)
+                    chosen.startsWith("退出") -> session.copy(playbackModeOverride = AppPrefs.PLAYER_PLAYBACK_MODE_EXIT)
+                    else -> session.copy(playbackModeOverride = AppPrefs.PLAYER_PLAYBACK_MODE_NONE)
+                }
+            applyPlaybackMode(exo)
+            refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
+        }
+    }
+
+    private fun handlePlaybackEnded(exo: ExoPlayer) {
+        val now = SystemClock.uptimeMillis()
+        if (now - lastEndedActionAtMs < 350) return
+        lastEndedActionAtMs = now
+
+        when (resolvedPlaybackMode()) {
+            AppPrefs.PLAYER_PLAYBACK_MODE_LOOP_ONE -> {
+                exo.seekTo(0)
+                exo.playWhenReady = true
+                exo.play()
+            }
+
+            AppPrefs.PLAYER_PLAYBACK_MODE_NEXT -> {
+                playNext(userInitiated = false)
+            }
+
+            AppPrefs.PLAYER_PLAYBACK_MODE_EXIT -> {
+                finish()
+            }
+
+            else -> Unit
+        }
+    }
+
+    private fun playNext(userInitiated: Boolean) {
+        val list = playlistItems
+        if (list.isEmpty() || playlistIndex !in list.indices) {
+            if (userInitiated) Toast.makeText(this, "暂无下一个视频", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (list.size == 1) {
+            val exo = player ?: return
+            exo.seekTo(0)
+            exo.playWhenReady = true
+            exo.play()
+            return
+        }
+        val next = (playlistIndex + 1) % list.size
+        playPlaylistIndex(next)
+    }
+
+    private fun playPrev(userInitiated: Boolean) {
+        val list = playlistItems
+        if (list.isEmpty() || playlistIndex !in list.indices) {
+            if (userInitiated) Toast.makeText(this, "暂无上一个视频", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (list.size == 1) {
+            val exo = player ?: return
+            exo.seekTo(0)
+            exo.playWhenReady = true
+            exo.play()
+            return
+        }
+        val prev = (playlistIndex - 1 + list.size) % list.size
+        playPlaylistIndex(prev)
+    }
+
+    private fun playPlaylistIndex(index: Int) {
+        val list = playlistItems
+        val item = list.getOrNull(index) ?: return
+        if (item.bvid.isBlank()) return
+
+        // Avoid pointless reload when list has only one item.
+        if (index == playlistIndex) {
+            val exo = player ?: return
+            exo.seekTo(0)
+            exo.playWhenReady = true
+            exo.play()
+            return
+        }
+
+        playlistIndex = index.coerceIn(0, list.lastIndex)
+        playlistToken?.let { PlayerPlaylistStore.updateIndex(it, playlistIndex) }
+        updatePlaylistControls()
+        startPlayback(
+            bvid = item.bvid,
+            cidExtra = item.cid?.takeIf { it > 0 },
+            epIdExtra = item.epId?.takeIf { it > 0 },
+            aidExtra = item.aid?.takeIf { it > 0 },
+            initialTitle = item.title,
+        )
+    }
+
+    private fun resetPlaybackStateForNewMedia(exo: ExoPlayer) {
+        traceFirstFrameLogged = false
+        lastAvailableQns = emptyList()
+        subtitleAvailable = false
+        subtitleConfig = null
+        subtitleItems = emptyList()
+        danmakuShield = null
+        danmakuLoadedSegments.clear()
+        danmakuLoadingSegments.clear()
+        danmakuAll.clear()
+        binding.danmakuView.setDanmakus(emptyList())
+        binding.danmakuView.notifySeek(0L)
+        playbackConstraints = PlaybackConstraints()
+        decodeFallbackAttempted = false
+        lastPickedDash = null
+        exo.stop()
+        applySubtitleEnabled(exo)
+        applyPlaybackMode(exo)
+        updateSubtitleButton()
+        updateDanmakuButton()
+        (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
+    }
+
+    private fun startPlayback(
+        bvid: String,
+        cidExtra: Long?,
+        epIdExtra: Long?,
+        aidExtra: Long?,
+        initialTitle: String?,
+    ) {
+        val exo = player ?: return
+        val safeBvid = bvid.trim()
+        if (safeBvid.isBlank()) return
+
+        loadJob?.cancel()
+        loadJob = null
+
+        currentBvid = safeBvid
+        currentEpId = epIdExtra
+        currentAid = aidExtra
+        currentCid = -1L
+
+        trace =
+            PlaybackTrace(
+                buildString {
+                    append(safeBvid.takeLast(8).ifBlank { "unknown" })
+                    append('-')
+                    append((System.currentTimeMillis() and 0xFFFF).toString(16))
+                },
+            )
+
+        binding.tvTitle.text = initialTitle?.takeIf { it.isNotBlank() } ?: "-"
+        binding.tvOnline.text = "-人正在观看"
+        resetPlaybackStateForNewMedia(exo)
+
+        updatePlaylistControls()
+
+        val handler =
+            playbackUncaughtHandler
+                ?: CoroutineExceptionHandler { _, t ->
+                    AppLog.e("Player", "uncaught", t)
+                    Toast.makeText(this@PlayerActivity, "播放失败：${t.message}", Toast.LENGTH_LONG).show()
+                    finish()
+                }
+
+        loadJob =
+            lifecycleScope.launch(handler) {
+                try {
+                    trace?.log("view:start")
+                    val viewJson = async(Dispatchers.IO) { runCatching { BiliApi.view(safeBvid) }.getOrNull() }
+                    val viewData = viewJson.await()?.optJSONObject("data") ?: JSONObject()
+                    trace?.log("view:done")
+                    val title = viewData.optString("title", "")
+                    if (title.isNotBlank()) binding.tvTitle.text = title
+
+                    val cid = cidExtra ?: viewData.optLong("cid").takeIf { it > 0 } ?: error("cid missing")
+                    val aid = viewData.optLong("aid").takeIf { it > 0 }
+                    currentAid = currentAid ?: aid
+                    currentCid = cid
+                    AppLog.i("Player", "start bvid=$safeBvid cid=$cid")
+                    trace?.log("cid:resolved", "cid=$cid aid=${aid ?: -1}")
+
+                    requestOnlineWatchingText(bvid = safeBvid, cid = cid)
+
+                    val playJob =
+                        async {
+                            val (qn, fnval) = playUrlParamsForSession()
+                            trace?.log("playurl:start", "qn=$qn fnval=$fnval")
+                            playbackConstraints = PlaybackConstraints()
+                            decodeFallbackAttempted = false
+                            lastPickedDash = null
+                            loadPlayableWithTryLookFallback(
+                                bvid = safeBvid,
+                                cid = cid,
+                                epId = currentEpId,
+                                qn = qn,
+                                fnval = fnval,
+                                constraints = playbackConstraints,
+                            ).also { trace?.log("playurl:done") }
+                        }
+                    val dmJob =
+                        async(Dispatchers.IO) {
+                            trace?.log("danmakuMeta:start")
+                            prepareDanmakuMeta(cid, currentAid ?: aid, trace)
+                                .also { trace?.log("danmakuMeta:done", "segTotal=${it.segmentTotal} segMs=${it.segmentSizeMs}") }
+                        }
+                    val subJob =
+                        async(Dispatchers.IO) {
+                            trace?.log("subtitle:start")
+                            prepareSubtitleConfig(viewData, safeBvid, cid, trace)
+                                .also { trace?.log("subtitle:done", "ok=${it != null}") }
+                        }
+
+                    trace?.log("playurl:await")
+                    val (playJson, playable) = playJob.await()
+                    trace?.log("playurl:awaitDone")
+                    showRiskControlBypassHintIfNeeded(playJson)
+                    lastAvailableQns = parseDashVideoQnList(playJson)
+                    trace?.log("subtitle:await")
+                    subtitleConfig = subJob.await()
+                    trace?.log("subtitle:awaitDone", "ok=${subtitleConfig != null}")
+                    subtitleAvailable = subtitleConfig != null
+                    (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
+                    applySubtitleEnabled(exo)
+
+                    val okHttpFactory = OkHttpDataSource.Factory(BiliClient.cdnOkHttp)
+                    trace?.log("exo:setMediaSource:start")
+                    when (playable) {
+                        is Playable.Dash -> {
+                            lastPickedDash = playable
+                            AppLog.i(
+                                "Player",
+                                "picked DASH qn=${playable.qn} codecid=${playable.codecid} dv=${playable.isDolbyVision} a=${playable.audioKind}(${playable.audioId}) video=${playable.videoUrl.take(40)}",
+                            )
+                            exo.setMediaSource(buildMerged(okHttpFactory, playable.videoUrl, playable.audioUrl, subtitleConfig))
+                            applyResolutionFallbackIfNeeded(requestedQn = session.targetQn, actualQn = playable.qn)
+                        }
+
+                        is Playable.Progressive -> {
+                            lastPickedDash = null
+                            AppLog.i("Player", "picked Progressive url=${playable.url.take(60)}")
+                            exo.setMediaSource(buildProgressive(okHttpFactory, playable.url, subtitleConfig))
+                        }
+                    }
+                    trace?.log("exo:setMediaSource:done")
+                    trace?.log("exo:prepare")
+                    exo.prepare()
+                    trace?.log("exo:playWhenReady")
+                    exo.playWhenReady = true
+                    updateSubtitleButton()
+
+                    trace?.log("danmakuMeta:await")
+                    val dmMeta = dmJob.await()
+                    trace?.log("danmakuMeta:awaitDone")
+                    applyDanmakuMeta(dmMeta)
+                    requestDanmakuSegmentsForPosition(exo.currentPosition.coerceAtLeast(0L), immediate = true)
+                } catch (t: Throwable) {
+                    if (t is CancellationException) return@launch
+                    AppLog.e("Player", "start failed", t)
+                    if (!handlePlayUrlErrorIfNeeded(t)) {
+                        Toast.makeText(this@PlayerActivity, "加载播放信息失败：${t.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+    }
 
     private fun requestOnlineWatchingText(bvid: String, cid: Long) {
         // Must not crash the player: always swallow any network/parse errors.
@@ -666,6 +935,16 @@ class PlayerActivity : AppCompatActivity() {
                 return true
             }
 
+            KeyEvent.KEYCODE_MEDIA_NEXT -> {
+                playNext(userInitiated = true)
+                return true
+            }
+
+            KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
+                playPrev(userInitiated = true)
+                return true
+            }
+
             KeyEvent.KEYCODE_DPAD_LEFT,
             KeyEvent.KEYCODE_MEDIA_REWIND,
             -> {
@@ -714,8 +993,11 @@ class PlayerActivity : AppCompatActivity() {
         holdSeekJob?.cancel()
         seekHintJob?.cancel()
         keyScrubEndJob?.cancel()
+        loadJob?.cancel()
+        loadJob = null
         player?.release()
         player = null
+        playlistToken?.let(PlayerPlaylistStore::remove)
         super.onDestroy()
     }
 
@@ -787,6 +1069,14 @@ class PlayerActivity : AppCompatActivity() {
             if (exo.isPlaying) exo.pause() else exo.play()
             setControlsVisible(true)
         }
+        binding.btnPrev.setOnClickListener {
+            playPrev(userInitiated = true)
+            setControlsVisible(true)
+        }
+        binding.btnNext.setOnClickListener {
+            playNext(userInitiated = true)
+            setControlsVisible(true)
+        }
         binding.btnRew.setOnClickListener {
             smartSeek(direction = -1, showControls = true, hintKind = SeekHintKind.Step)
         }
@@ -842,6 +1132,7 @@ class PlayerActivity : AppCompatActivity() {
         updatePlayPauseIcon(exo.isPlaying)
         updateSubtitleButton()
         updateDanmakuButton()
+        updatePlaylistControls()
         setControlsVisible(true)
         startProgressLoop()
     }
@@ -1193,6 +1484,7 @@ class PlayerActivity : AppCompatActivity() {
                 PlayerSettingsAdapter.SettingItem("分辨率", resolutionSubtitle()),
                 PlayerSettingsAdapter.SettingItem("视频编码", session.preferCodec),
                 PlayerSettingsAdapter.SettingItem("播放速度", String.format(Locale.US, "%.2fx", session.playbackSpeed)),
+                PlayerSettingsAdapter.SettingItem("播放模式", playbackModeSubtitle()),
                 PlayerSettingsAdapter.SettingItem("字幕语言", subtitleLangSubtitle()),
                 PlayerSettingsAdapter.SettingItem("弹幕透明度", String.format(Locale.US, "%.2f", session.danmaku.opacity)),
                 PlayerSettingsAdapter.SettingItem("弹幕字号", session.danmaku.textSizeSp.toInt().toString()),
@@ -2141,6 +2433,7 @@ class PlayerActivity : AppCompatActivity() {
         val preferAudioId: Int,
         val preferredQn: Int,
         val targetQn: Int,
+        val playbackModeOverride: String?,
         val subtitleEnabled: Boolean,
         val subtitleLangOverride: String?,
         val danmaku: DanmakuSessionSettings,
@@ -2353,7 +2646,9 @@ class PlayerActivity : AppCompatActivity() {
         val controlSize = px(if (tvMode) R.dimen.player_control_button_size_tv else R.dimen.player_control_button_size)
         val controlPad = px(if (tvMode) R.dimen.player_control_button_padding_tv else R.dimen.player_control_button_padding)
         listOf(
+            binding.btnPrev,
             binding.btnPlayPause,
+            binding.btnNext,
             binding.btnRew,
             binding.btnFfwd,
             binding.btnSubtitle,
@@ -2414,6 +2709,8 @@ class PlayerActivity : AppCompatActivity() {
         const val EXTRA_CID = "cid"
         const val EXTRA_EP_ID = "ep_id"
         const val EXTRA_AID = "aid"
+        const val EXTRA_PLAYLIST_TOKEN = "playlist_token"
+        const val EXTRA_PLAYLIST_INDEX = "playlist_index"
         private const val SEEK_MAX = 10_000
         private const val AUTO_HIDE_MS = 4_000L
         private const val EDGE_TAP_THRESHOLD = 0.28f

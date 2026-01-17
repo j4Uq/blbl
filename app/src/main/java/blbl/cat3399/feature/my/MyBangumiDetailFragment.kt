@@ -18,6 +18,8 @@ import blbl.cat3399.core.model.BangumiEpisode
 import blbl.cat3399.core.util.Format
 import blbl.cat3399.databinding.FragmentMyBangumiDetailBinding
 import blbl.cat3399.feature.player.PlayerActivity
+import blbl.cat3399.feature.player.PlayerPlaylistItem
+import blbl.cat3399.feature.player.PlayerPlaylistStore
 import kotlinx.coroutines.launch
 
 class MyBangumiDetailFragment : Fragment() {
@@ -53,8 +55,8 @@ class MyBangumiDetailFragment : Fragment() {
         binding.btnSecondary.text = if (isDrama) "已追剧" else "已追番"
 
         epAdapter =
-            BangumiEpisodeAdapter {
-                playEpisode(it)
+            BangumiEpisodeAdapter { ep, pos ->
+                playEpisode(ep, pos)
             }
         binding.recyclerEpisodes.adapter = epAdapter
         binding.recyclerEpisodes.layoutManager = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
@@ -72,7 +74,8 @@ class MyBangumiDetailFragment : Fragment() {
                 Toast.makeText(requireContext(), "暂无可播放剧集", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            playEpisode(ep)
+            val pos = currentEpisodes.indexOfFirst { it.epId == ep.epId }.takeIf { it >= 0 } ?: 0
+            playEpisode(ep, pos)
         }
         binding.btnSecondary.setOnClickListener {
             Toast.makeText(requireContext(), "暂不支持操作", Toast.LENGTH_SHORT).show()
@@ -190,19 +193,37 @@ class MyBangumiDetailFragment : Fragment() {
         }
     }
 
-    private fun playEpisode(ep: BangumiEpisode) {
+    private fun playEpisode(ep: BangumiEpisode, pos: Int) {
         val bvid = ep.bvid.orEmpty()
         val cid = ep.cid ?: -1L
         if (bvid.isBlank() || cid <= 0) {
             Toast.makeText(requireContext(), "缺少播放信息（bvid/cid）", Toast.LENGTH_SHORT).show()
             return
         }
+        val allItems =
+            currentEpisodes.map {
+                PlayerPlaylistItem(
+                    bvid = it.bvid.orEmpty(),
+                    cid = it.cid,
+                    epId = it.epId,
+                    aid = it.aid,
+                    title = it.title,
+                )
+            }
+        val playlistItems = allItems.filter { it.bvid.isNotBlank() }
+        val playlistIndex =
+            playlistItems.indexOfFirst { it.epId == ep.epId }
+                .takeIf { it >= 0 }
+                ?: pos
+        val token = PlayerPlaylistStore.put(items = playlistItems, index = playlistIndex, source = "Bangumi:$seasonId")
         startActivity(
             Intent(requireContext(), PlayerActivity::class.java)
                 .putExtra(PlayerActivity.EXTRA_BVID, bvid)
                 .putExtra(PlayerActivity.EXTRA_CID, cid)
                 .putExtra(PlayerActivity.EXTRA_EP_ID, ep.epId)
-                .apply { ep.aid?.let { putExtra(PlayerActivity.EXTRA_AID, it) } },
+                .apply { ep.aid?.let { putExtra(PlayerActivity.EXTRA_AID, it) } }
+                .putExtra(PlayerActivity.EXTRA_PLAYLIST_TOKEN, token)
+                .putExtra(PlayerActivity.EXTRA_PLAYLIST_INDEX, playlistIndex),
         )
     }
 

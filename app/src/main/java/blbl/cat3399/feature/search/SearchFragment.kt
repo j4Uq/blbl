@@ -28,6 +28,8 @@ import blbl.cat3399.core.ui.SingleChoiceDialog
 import blbl.cat3399.core.ui.enableDpadTabFocus
 import blbl.cat3399.databinding.FragmentSearchBinding
 import blbl.cat3399.feature.player.PlayerActivity
+import blbl.cat3399.feature.player.PlayerPlaylistItem
+import blbl.cat3399.feature.player.PlayerPlaylistStore
 import blbl.cat3399.feature.video.VideoCardAdapter
 import blbl.cat3399.ui.BackPressHandler
 import kotlinx.coroutines.Job
@@ -380,11 +382,22 @@ class SearchFragment : Fragment(), BackPressHandler {
 
     private fun setupResults() {
         resultAdapter =
-            VideoCardAdapter { card ->
+            VideoCardAdapter { card, pos ->
+                val playlistItems =
+                    resultAdapter.snapshot().map {
+                        PlayerPlaylistItem(
+                            bvid = it.bvid,
+                            cid = it.cid,
+                            title = it.title,
+                        )
+                    }
+                val token = PlayerPlaylistStore.put(items = playlistItems, index = pos, source = "Search")
                 startActivity(
                     Intent(requireContext(), PlayerActivity::class.java)
                         .putExtra(PlayerActivity.EXTRA_BVID, card.bvid)
-                        .putExtra(PlayerActivity.EXTRA_CID, card.cid ?: -1L),
+                        .putExtra(PlayerActivity.EXTRA_CID, card.cid ?: -1L)
+                        .putExtra(PlayerActivity.EXTRA_PLAYLIST_TOKEN, token)
+                        .putExtra(PlayerActivity.EXTRA_PLAYLIST_INDEX, pos),
                 )
             }
         resultAdapter.setTvMode(isTvMode)

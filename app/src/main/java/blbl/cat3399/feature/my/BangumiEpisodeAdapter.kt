@@ -11,7 +11,7 @@ import blbl.cat3399.core.util.pgcAccessBadgeTextOf
 import blbl.cat3399.databinding.ItemBangumiEpisodeBinding
 
 class BangumiEpisodeAdapter(
-    private val onClick: (BangumiEpisode) -> Unit,
+    private val onClick: (BangumiEpisode, Int) -> Unit,
 ) : RecyclerView.Adapter<BangumiEpisodeAdapter.Vh>() {
     private val items = ArrayList<BangumiEpisode>()
 
@@ -25,6 +25,8 @@ class BangumiEpisodeAdapter(
         notifyDataSetChanged()
     }
 
+    fun snapshot(): List<BangumiEpisode> = items.toList()
+
     override fun getItemId(position: Int): Long = items[position].epId
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Vh {
@@ -37,7 +39,7 @@ class BangumiEpisodeAdapter(
     override fun getItemCount(): Int = items.size
 
     class Vh(private val binding: ItemBangumiEpisodeBinding) : RecyclerView.ViewHolder(binding.root) {
-        fun bind(item: BangumiEpisode, onClick: (BangumiEpisode) -> Unit) {
+        fun bind(item: BangumiEpisode, onClick: (BangumiEpisode, Int) -> Unit) {
             val title = item.title.trim().takeIf { it.isNotBlank() } ?: "-"
             binding.tvTitle.text = "第${title}话"
             ImageLoader.loadInto(binding.ivCover, ImageUrl.cover(item.coverUrl))
@@ -46,7 +48,10 @@ class BangumiEpisodeAdapter(
             binding.tvAccessBadgeText.isVisible = badgeText != null
             binding.tvAccessBadgeText.text = badgeText.orEmpty()
 
-            binding.root.setOnClickListener { onClick(item) }
+            binding.root.setOnClickListener {
+                val pos = bindingAdapterPosition.takeIf { it != RecyclerView.NO_POSITION } ?: return@setOnClickListener
+                onClick(item, pos)
+            }
         }
     }
 }

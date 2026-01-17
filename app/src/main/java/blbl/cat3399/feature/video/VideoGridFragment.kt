@@ -17,6 +17,8 @@ import blbl.cat3399.core.api.BiliApi
 import blbl.cat3399.core.log.AppLog
 import blbl.cat3399.core.tv.TvMode
 import blbl.cat3399.databinding.FragmentVideoGridBinding
+import blbl.cat3399.feature.player.PlayerPlaylistItem
+import blbl.cat3399.feature.player.PlayerPlaylistStore
 import blbl.cat3399.feature.player.PlayerActivity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -56,12 +58,23 @@ class VideoGridFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         AppLog.d("VideoGrid", "onViewCreated source=$source rid=$rid t=${SystemClock.uptimeMillis()}")
         if (!::adapter.isInitialized) {
-            adapter = VideoCardAdapter { card ->
+            adapter = VideoCardAdapter { card, pos ->
                 AppLog.i("VideoGrid", "click bvid=${card.bvid} cid=${card.cid}")
+                val playlistItems =
+                    adapter.snapshot().map {
+                        PlayerPlaylistItem(
+                            bvid = it.bvid,
+                            cid = it.cid,
+                            title = it.title,
+                        )
+                    }
+                val token = PlayerPlaylistStore.put(items = playlistItems, index = pos, source = "VideoGrid:$source/$rid")
                 startActivity(
                     Intent(requireContext(), PlayerActivity::class.java)
                         .putExtra(PlayerActivity.EXTRA_BVID, card.bvid)
-                        .putExtra(PlayerActivity.EXTRA_CID, card.cid ?: -1L),
+                        .putExtra(PlayerActivity.EXTRA_CID, card.cid ?: -1L)
+                        .putExtra(PlayerActivity.EXTRA_PLAYLIST_TOKEN, token)
+                        .putExtra(PlayerActivity.EXTRA_PLAYLIST_INDEX, pos),
                 )
             }
         }
