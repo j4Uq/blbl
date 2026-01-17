@@ -20,7 +20,7 @@ import blbl.cat3399.databinding.FragmentLiveGridBinding
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-class LiveGridFragment : Fragment() {
+class LiveGridFragment : Fragment(), LivePageFocusTarget {
     private var _binding: FragmentLiveGridBinding? = null
     private val binding get() = _binding!!
 
@@ -30,7 +30,9 @@ class LiveGridFragment : Fragment() {
 
     private val source: String by lazy { requireArguments().getString(ARG_SOURCE) ?: SRC_RECOMMEND }
     private val parentAreaId: Int by lazy { requireArguments().getInt(ARG_PARENT_AREA_ID, 0) }
+    private val areaId: Int by lazy { requireArguments().getInt(ARG_AREA_ID, 0) }
     private val title: String? by lazy { requireArguments().getString(ARG_TITLE) }
+    private val enableTabFocus: Boolean by lazy { requireArguments().getBoolean(ARG_ENABLE_TAB_FOCUS, true) }
 
     private val loadedRoomIds = HashSet<Long>()
     private var isLoadingMore: Boolean = false
@@ -100,7 +102,13 @@ class LiveGridFragment : Fragment() {
                                     val pos =
                                         holder.bindingAdapterPosition.takeIf { it != RecyclerView.NO_POSITION }
                                             ?: return@setOnKeyListener false
-                                    if (pos < lm.spanCount) return@setOnKeyListener focusSelectedTabIfAvailable()
+                                    if (pos < lm.spanCount) {
+                                        return@setOnKeyListener if (enableTabFocus) {
+                                            focusSelectedTabIfAvailable()
+                                        } else {
+                                            focusBackButtonIfAvailable()
+                                        }
+                                    }
                                 }
                                 false
                             }
@@ -108,6 +116,10 @@ class LiveGridFragment : Fragment() {
                             KeyEvent.KEYCODE_DPAD_LEFT -> {
                                 val next = FocusFinder.getInstance().findNextFocus(binding.recycler, itemView, View.FOCUS_LEFT)
                                 if (next == null || !isDescendantOf(next, binding.recycler)) {
+                                    if (!enableTabFocus) {
+                                        focusBackButtonIfAvailable()
+                                        return@setOnKeyListener true
+                                    }
                                     if (!switchToPrevTabFromContentEdge()) return@setOnKeyListener false
                                     return@setOnKeyListener true
                                 }
@@ -117,6 +129,7 @@ class LiveGridFragment : Fragment() {
                             KeyEvent.KEYCODE_DPAD_RIGHT -> {
                                 val next = FocusFinder.getInstance().findNextFocus(binding.recycler, itemView, View.FOCUS_RIGHT)
                                 if (next == null || !isDescendantOf(next, binding.recycler)) {
+                                    if (!enableTabFocus) return@setOnKeyListener true
                                     if (!switchToNextTabFromContentEdge()) return@setOnKeyListener false
                                     return@setOnKeyListener true
                                 }
@@ -205,6 +218,7 @@ class LiveGridFragment : Fragment() {
         val startAt = SystemClock.uptimeMillis()
         viewLifecycleOwner.lifecycleScope.launch {
             try {
+                val areaPageSize = 30
                 val fetched =
                     when (source) {
                         SRC_FOLLOWING -> {
@@ -212,13 +226,24 @@ class LiveGridFragment : Fragment() {
                             if (!res.hasMore) endReached = true
                             res.items
                         }
+                        SRC_AREA -> {
+                            val list =
+                                BiliApi.liveAreaRooms(
+                                    parentAreaId = parentAreaId,
+                                    areaId = areaId,
+                                    page = page,
+                                    pageSize = areaPageSize,
+                                )
+                            if (list.isEmpty() || list.size < areaPageSize) endReached = true
+                            list
+                        }
                         else -> BiliApi.liveRecommend(page = page)
                     }
 
                 if (token != requestToken) return@launch
 
                 val filteredByArea =
-                    if (parentAreaId > 0) fetched.filter { it.parentAreaId == parentAreaId } else fetched
+                    if (source == SRC_RECOMMEND && parentAreaId > 0) fetched.filter { it.parentAreaId == parentAreaId } else fetched
                 val filtered = filteredByArea.filter { loadedRoomIds.add(it.roomId) }
 
                 if (filtered.isNotEmpty()) {
@@ -229,12 +254,17 @@ class LiveGridFragment : Fragment() {
                     maybeConsumePendingFocusNextCardAfterLoadMoreFromDpad()
                 }
 
-                // Recommend endpoint can return lots of unrelated areas; keep fetching a bit when filtered empty.
-                if (source == SRC_RECOMMEND && parentAreaId > 0 && filteredByArea.isEmpty()) {
-                    if (page >= 8) endReached = true
-                } else if (fetched.isEmpty() || filtered.isEmpty() && page >= 8) {
-                    // Conservative end guard.
-                    endReached = true
+                if (source == SRC_RECOMMEND) {
+                    // Recommend endpoint can return lots of unrelated areas; keep fetching a bit when filtered empty.
+                    if (parentAreaId > 0 && filteredByArea.isEmpty()) {
+                        if (page >= 8) endReached = true
+                    } else if (fetched.isEmpty() || filtered.isEmpty() && page >= 8) {
+                        // Conservative end guard.
+                        endReached = true
+                    }
+                } else if (source == SRC_AREA) {
+                    // Conservative end guard for empty-after-dedup.
+                    if (filtered.isEmpty() && page >= 8) endReached = true
                 }
 
                 page++
@@ -262,13 +292,13 @@ class LiveGridFragment : Fragment() {
         }
     }
 
-    fun requestFocusFirstCardFromTab(): Boolean {
+    override fun requestFocusFirstCardFromTab(): Boolean {
         pendingFocusFirstCardFromTab = true
         if (!isResumed) return true
         return maybeConsumePendingFocusFirstCard()
     }
 
-    fun requestFocusFirstCardFromContentSwitch(): Boolean {
+    override fun requestFocusFirstCardFromContentSwitch(): Boolean {
         pendingFocusFirstCardFromContentSwitch = true
         if (!isResumed) return true
         return maybeConsumePendingFocusFirstCard()
@@ -329,6 +359,12 @@ class LiveGridFragment : Fragment() {
         val pos = tabLayout.selectedTabPosition.takeIf { it >= 0 } ?: 0
         tabStrip.getChildAt(pos)?.requestFocus() ?: return false
         return true
+    }
+
+    private fun focusBackButtonIfAvailable(): Boolean {
+        val parentView = parentFragment?.view ?: return false
+        val back = parentView.findViewById<View?>(blbl.cat3399.R.id.btn_back) ?: return false
+        return back.requestFocus()
     }
 
     private fun isDescendantOf(view: View, ancestor: View): Boolean {
@@ -445,14 +481,29 @@ class LiveGridFragment : Fragment() {
     companion object {
         private const val ARG_SOURCE = "source"
         private const val ARG_PARENT_AREA_ID = "parent_area_id"
+        private const val ARG_AREA_ID = "area_id"
         private const val ARG_TITLE = "title"
+        private const val ARG_ENABLE_TAB_FOCUS = "enable_tab_focus"
 
         const val SRC_RECOMMEND = "recommend"
         const val SRC_FOLLOWING = "following"
+        const val SRC_AREA = "area"
 
         fun newRecommend() = LiveGridFragment().apply { arguments = Bundle().apply { putString(ARG_SOURCE, SRC_RECOMMEND) } }
 
         fun newFollowing() = LiveGridFragment().apply { arguments = Bundle().apply { putString(ARG_SOURCE, SRC_FOLLOWING) } }
+
+        fun newArea(parentAreaId: Int, areaId: Int, title: String, enableTabFocus: Boolean = true) =
+            LiveGridFragment().apply {
+                arguments =
+                    Bundle().apply {
+                        putString(ARG_SOURCE, SRC_AREA)
+                        putInt(ARG_PARENT_AREA_ID, parentAreaId)
+                        putInt(ARG_AREA_ID, areaId)
+                        putString(ARG_TITLE, title)
+                        putBoolean(ARG_ENABLE_TAB_FOCUS, enableTabFocus)
+                    }
+            }
 
         fun newRecommendFiltered(parentAreaId: Int, title: String) =
             LiveGridFragment().apply {

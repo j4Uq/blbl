@@ -17,10 +17,11 @@ import blbl.cat3399.core.ui.enableDpadTabFocus
 import blbl.cat3399.databinding.FragmentLiveBinding
 import blbl.cat3399.ui.BackPressHandler
 import com.google.android.material.tabs.TabLayoutMediator
+import androidx.fragment.app.FragmentManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
-class LiveFragment : Fragment(), LiveGridTabSwitchFocusHost, BackPressHandler {
+class LiveFragment : Fragment(), LiveGridTabSwitchFocusHost, BackPressHandler, LiveNavigator {
     private var _binding: FragmentLiveBinding? = null
     private val binding get() = _binding!!
 
@@ -29,6 +30,7 @@ class LiveFragment : Fragment(), LiveGridTabSwitchFocusHost, BackPressHandler {
     private var pendingFocusFirstCardFromContentSwitch: Boolean = false
 
     private var loadAreasJob: Job? = null
+    private var backStackListener: FragmentManager.OnBackStackChangedListener? = null
 
     private var tabs: List<LiveTab> =
         buildList {
@@ -43,6 +45,12 @@ class LiveFragment : Fragment(), LiveGridTabSwitchFocusHost, BackPressHandler {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         setTabs(tabs)
+        backStackListener =
+            FragmentManager.OnBackStackChangedListener {
+                updateDetailVisibility()
+            }.also { childFragmentManager.addOnBackStackChangedListener(it) }
+        updateDetailVisibility()
+
         loadAreasJob?.cancel()
         loadAreasJob =
             viewLifecycleOwner.lifecycleScope.launch {
@@ -50,6 +58,33 @@ class LiveFragment : Fragment(), LiveGridTabSwitchFocusHost, BackPressHandler {
                     .onSuccess { parents -> applyAreas(parents) }
                     .onFailure { AppLog.w("Live", "load areas failed", it) }
             }
+    }
+
+    override fun openAreaDetail(parentAreaId: Int, parentTitle: String, areaId: Int, areaTitle: String): Boolean {
+        if (_binding == null || childFragmentManager.isStateSaved) return false
+        childFragmentManager.beginTransaction()
+            .setReorderingAllowed(true)
+            .replace(
+                binding.detailContainer.id,
+                LiveAreaDetailFragment.newInstance(
+                    parentAreaId = parentAreaId,
+                    parentTitle = parentTitle,
+                    areaId = areaId,
+                    areaTitle = areaTitle,
+                ),
+            )
+            .addToBackStack(null)
+            .commit()
+        updateDetailVisibility()
+        return true
+    }
+
+    private fun updateDetailVisibility() {
+        val b = _binding ?: return
+        val showDetail = childFragmentManager.backStackEntryCount > 0
+        b.detailContainer.visibility = if (showDetail) View.VISIBLE else View.GONE
+        b.tabLayout.visibility = if (showDetail) View.GONE else View.VISIBLE
+        b.viewPager.visibility = if (showDetail) View.GONE else View.VISIBLE
     }
 
     private fun applyAreas(parents: List<LiveAreaParent>) {
@@ -122,8 +157,8 @@ class LiveFragment : Fragment(), LiveGridTabSwitchFocusHost, BackPressHandler {
         val byTag = childFragmentManager.findFragmentByTag("f$itemId")
         val pageFragment =
             when {
-                byTag is LiveGridFragment -> byTag
-                else -> childFragmentManager.fragments.firstOrNull { it.isVisible && it is LiveGridFragment } as? LiveGridFragment
+                byTag is LivePageFocusTarget -> byTag
+                else -> childFragmentManager.fragments.firstOrNull { it.isVisible && it is LivePageFocusTarget } as? LivePageFocusTarget
             } ?: return false
         return pageFragment.requestFocusFirstCardFromTab()
     }
@@ -135,8 +170,8 @@ class LiveFragment : Fragment(), LiveGridTabSwitchFocusHost, BackPressHandler {
         val byTag = childFragmentManager.findFragmentByTag("f$itemId")
         val pageFragment =
             when {
-                byTag is LiveGridFragment -> byTag
-                else -> childFragmentManager.fragments.firstOrNull { it.isVisible && it is LiveGridFragment } as? LiveGridFragment
+                byTag is LivePageFocusTarget -> byTag
+                else -> childFragmentManager.fragments.firstOrNull { it.isVisible && it is LivePageFocusTarget } as? LivePageFocusTarget
             } ?: return false
         return pageFragment.requestFocusFirstCardFromContentSwitch()
     }
@@ -150,6 +185,12 @@ class LiveFragment : Fragment(), LiveGridTabSwitchFocusHost, BackPressHandler {
     }
 
     override fun handleBackPressed(): Boolean {
+        if (childFragmentManager.popBackStackImmediate()) {
+            updateDetailVisibility()
+            pendingFocusFirstCardFromContentSwitch = true
+            _binding?.viewPager?.post { focusCurrentPageFirstCardFromContentSwitch() }
+            return true
+        }
         val b = _binding ?: return false
         if (b.viewPager.currentItem == 0) return false
         pendingFocusFirstCardFromContentSwitch = true
@@ -160,6 +201,9 @@ class LiveFragment : Fragment(), LiveGridTabSwitchFocusHost, BackPressHandler {
     override fun onDestroyView() {
         loadAreasJob?.cancel()
         loadAreasJob = null
+
+        backStackListener?.let { childFragmentManager.removeOnBackStackChangedListener(it) }
+        backStackListener = null
 
         mediator?.detach()
         mediator = null
@@ -197,7 +241,7 @@ class LiveFragment : Fragment(), LiveGridTabSwitchFocusHost, BackPressHandler {
             return when (tab.kind) {
                 LiveTab.Kind.RECOMMEND -> LiveGridFragment.newRecommend()
                 LiveTab.Kind.FOLLOWING -> LiveGridFragment.newFollowing()
-                LiveTab.Kind.AREA -> LiveGridFragment.newRecommendFiltered(parentAreaId = tab.parentId ?: 0, title = tab.title)
+                LiveTab.Kind.AREA -> LiveAreaIndexFragment.newInstance(parentAreaId = tab.parentId ?: 0, parentTitle = tab.title)
             }
         }
     }

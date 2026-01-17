@@ -28,6 +28,15 @@ object BiliApi {
     private const val TAG = "BiliApi"
     private const val PILI_REFERER = "https://www.bilibili.com"
 
+    private const val LIVE_AREAS_CACHE_TTL_MS = 12 * 60 * 60 * 1000L // 12h
+
+    private data class LiveAreasCache(
+        val fetchedAtMs: Long,
+        val items: List<LiveAreaParent>,
+    )
+
+    @Volatile private var liveAreasCache: LiveAreasCache? = null
+
     private fun extractVVoucher(json: JSONObject): String? {
         val data = json.optJSONObject("data") ?: json.optJSONObject("result") ?: return null
         return data.optString("v_voucher", "").trim().takeIf { it.isNotBlank() }
@@ -610,7 +619,12 @@ object BiliApi {
         )
     }
 
-    suspend fun liveAreas(): List<LiveAreaParent> {
+    suspend fun liveAreas(force: Boolean = false): List<LiveAreaParent> {
+        val now = System.currentTimeMillis()
+        val cached = liveAreasCache
+        if (!force && cached != null && now - cached.fetchedAtMs < LIVE_AREAS_CACHE_TTL_MS) {
+            return cached.items
+        }
         val json = BiliClient.getJson("https://api.live.bilibili.com/room/v1/Area/getList")
         val code = json.optInt("code", 0)
         if (code != 0) {
@@ -618,11 +632,52 @@ object BiliApi {
             throw BiliApiException(apiCode = code, apiMessage = msg)
         }
         val data = json.optJSONArray("data") ?: JSONArray()
-        return withContext(Dispatchers.Default) { parseLiveAreas(data) }
+        val areas = withContext(Dispatchers.Default) { parseLiveAreas(data) }
+        liveAreasCache = LiveAreasCache(fetchedAtMs = now, items = areas)
+        return areas
     }
 
     suspend fun liveRecommend(page: Int = 1): List<LiveRoomCard> {
         // This endpoint is public; keep params minimal to avoid extra risk controls.
+        val p = page.coerceAtLeast(1)
+        val listFromIndex = runCatching { liveRecommendFromIndex(page = p) }.getOrNull()
+        if (!listFromIndex.isNullOrEmpty()) return listFromIndex
+        return liveRecommendFromWebMain(page = p)
+    }
+
+    private suspend fun liveRecommendFromIndex(page: Int): List<LiveRoomCard> {
+        val url =
+            BiliClient.withQuery(
+                "https://api.live.bilibili.com/xlive/web-interface/v1/index/getList",
+                mapOf(
+                    "platform" to "web",
+                    "page" to page.coerceAtLeast(1).toString(),
+                ),
+            )
+        val json = BiliClient.getJson(url)
+        val code = json.optInt("code", 0)
+        if (code != 0) {
+            val msg = json.optString("message", json.optString("msg", ""))
+            throw BiliApiException(apiCode = code, apiMessage = msg)
+        }
+        val data = json.optJSONObject("data") ?: JSONObject()
+        val roomList = data.optJSONArray("room_list") ?: JSONArray()
+        var picked: JSONArray? = null
+        for (i in 0 until roomList.length()) {
+            val obj = roomList.optJSONObject(i) ?: continue
+            val mi = obj.optJSONObject("module_info") ?: JSONObject()
+            val id = mi.optInt("id", 0)
+            val title = mi.optString("title", "").trim()
+            if (id == 3 || title == "推荐直播") {
+                picked = obj.optJSONArray("list") ?: JSONArray()
+                break
+            }
+        }
+        val list = picked ?: JSONArray()
+        return withContext(Dispatchers.Default) { parseLiveRecommendRooms(list) }
+    }
+
+    private suspend fun liveRecommendFromWebMain(page: Int): List<LiveRoomCard> {
         val url =
             BiliClient.withQuery(
                 "https://api.live.bilibili.com/xlive/web-interface/v1/webMain/getMoreRecList",
@@ -639,6 +694,34 @@ object BiliApi {
         }
         val list = json.optJSONObject("data")?.optJSONArray("recommend_room_list") ?: JSONArray()
         return withContext(Dispatchers.Default) { parseLiveRecommendRooms(list) }
+    }
+
+    suspend fun liveAreaRooms(
+        parentAreaId: Int,
+        areaId: Int,
+        page: Int = 1,
+        pageSize: Int = 30,
+        sortType: String = "online",
+    ): List<LiveRoomCard> {
+        val url =
+            BiliClient.withQuery(
+                "https://api.live.bilibili.com/room/v1/Area/getRoomList",
+                buildMap {
+                    put("parent_area_id", parentAreaId.coerceAtLeast(0).toString())
+                    put("area_id", areaId.coerceAtLeast(0).toString())
+                    put("page", page.coerceAtLeast(1).toString())
+                    put("page_size", pageSize.coerceIn(1, 60).toString())
+                    put("sort_type", sortType.trim())
+                },
+            )
+        val json = BiliClient.getJson(url)
+        val code = json.optInt("code", 0)
+        if (code != 0) {
+            val msg = json.optString("message", json.optString("msg", ""))
+            throw BiliApiException(apiCode = code, apiMessage = msg)
+        }
+        val data = json.optJSONArray("data") ?: JSONArray()
+        return withContext(Dispatchers.Default) { parseLiveAreaRooms(data) }
     }
 
     suspend fun liveFollowing(page: Int = 1, pageSize: Int = 10): HasMorePage<LiveRoomCard> {
@@ -867,6 +950,44 @@ object BiliApi {
                     areaId = obj.optInt("area_v2_id").takeIf { it > 0 },
                     areaName = obj.optString("area_v2_name", "").trim().takeIf { it.isNotBlank() },
                     keyframe = obj.optString("keyframe", "").trim().takeIf { it.isNotBlank() },
+                ),
+            )
+        }
+        return out
+    }
+
+    private fun parseLiveAreaRooms(arr: JSONArray): List<LiveRoomCard> {
+        val out = ArrayList<LiveRoomCard>(arr.length())
+        for (i in 0 until arr.length()) {
+            val obj = arr.optJSONObject(i) ?: continue
+            val roomId = obj.optLong("roomid").takeIf { it > 0 } ?: continue
+            val online = obj.optLong("online").takeIf { it > 0 } ?: 0L
+            val coverUrl = obj.optString("user_cover").ifBlank { obj.optString("cover") }.trim()
+            val areaId = obj.optInt("area_v2_id", obj.optInt("area_id", 0)).takeIf { it > 0 }
+            val parentAreaId = obj.optInt("area_v2_parent_id", obj.optInt("parent_id", 0)).takeIf { it > 0 }
+            out.add(
+                LiveRoomCard(
+                    roomId = roomId,
+                    uid = obj.optLong("uid").takeIf { it > 0 } ?: 0L,
+                    title = obj.optString("title", ""),
+                    uname = obj.optString("uname", ""),
+                    coverUrl = coverUrl,
+                    faceUrl = obj.optString("face", "").trim().takeIf { it.isNotBlank() },
+                    online = online,
+                    isLive = true,
+                    parentAreaId = parentAreaId,
+                    parentAreaName =
+                        obj
+                            .optString("area_v2_parent_name", obj.optString("parent_name", ""))
+                            .trim()
+                            .takeIf { it.isNotBlank() },
+                    areaId = areaId,
+                    areaName =
+                        obj
+                            .optString("area_v2_name", obj.optString("area_name", ""))
+                            .trim()
+                            .takeIf { it.isNotBlank() },
+                    keyframe = obj.optString("system_cover", "").trim().takeIf { it.isNotBlank() },
                 ),
             )
         }
