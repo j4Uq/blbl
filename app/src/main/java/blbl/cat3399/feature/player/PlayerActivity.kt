@@ -1,5 +1,6 @@
 package blbl.cat3399.feature.player
 
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.SystemClock
@@ -41,6 +42,7 @@ import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.prefs.AppPrefs
 import blbl.cat3399.core.tv.TvMode
 import blbl.cat3399.core.ui.Immersive
+import blbl.cat3399.feature.settings.SettingsActivity
 import blbl.cat3399.databinding.ActivityPlayerBinding
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.Dispatchers
@@ -290,8 +292,17 @@ class PlayerActivity : AppCompatActivity() {
                     async {
                         val (qn, fnval) = playUrlParamsForSession()
                         trace?.log("playurl:start", "qn=$qn fnval=$fnval")
-                        requestPlayUrlWithFallback(bvid = bvid, cid = cid, epId = currentEpId, qn = qn, fnval = fnval)
-                            .also { trace?.log("playurl:done") }
+                        playbackConstraints = PlaybackConstraints()
+                        decodeFallbackAttempted = false
+                        lastPickedDash = null
+                        loadPlayableWithTryLookFallback(
+                            bvid = bvid,
+                            cid = cid,
+                            epId = currentEpId,
+                            qn = qn,
+                            fnval = fnval,
+                            constraints = playbackConstraints,
+                        ).also { trace?.log("playurl:done") }
                     }
                 val dmJob =
                     async(Dispatchers.IO) {
@@ -307,16 +318,10 @@ class PlayerActivity : AppCompatActivity() {
                     }
 
                 trace?.log("playurl:await")
-                val playJson = playJob.await()
+                val (playJson, playable) = playJob.await()
                 trace?.log("playurl:awaitDone")
                 showRiskControlBypassHintIfNeeded(playJson)
                 lastAvailableQns = parseDashVideoQnList(playJson)
-                playbackConstraints = PlaybackConstraints()
-                decodeFallbackAttempted = false
-                lastPickedDash = null
-                trace?.log("pickPlayable:start")
-                val playable = pickPlayable(playJson, playbackConstraints)
-                trace?.log("pickPlayable:done", "kind=${playable.javaClass.simpleName}")
                 trace?.log("subtitle:await")
                 subtitleConfig = subJob.await()
                 trace?.log("subtitle:awaitDone", "ok=${subtitleConfig != null}")
@@ -361,6 +366,11 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    private data class PlayFetchResult(
+        val json: JSONObject,
+        val playable: Playable,
+    )
+
     private fun requestOnlineWatchingText(bvid: String, cid: Long) {
         // Must not crash the player: always swallow any network/parse errors.
         binding.tvOnline.text = "-人正在观看"
@@ -387,21 +397,161 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    private suspend fun requestPlayUrlWithFallback(
+    private fun extractVVoucher(json: JSONObject): String? {
+        val data = json.optJSONObject("data") ?: json.optJSONObject("result") ?: return null
+        return data.optString("v_voucher", "").trim().takeIf { it.isNotBlank() }
+    }
+
+    private fun recordVVoucher(vVoucher: String) {
+        val prefs = BiliClient.prefs
+        prefs.gaiaVgateVVoucher = vVoucher
+        prefs.gaiaVgateVVoucherSavedAtMs = System.currentTimeMillis()
+    }
+
+    private suspend fun requestPlayJson(
         bvid: String,
         cid: Long,
         epId: Long?,
         qn: Int,
         fnval: Int,
+        tryLook: Boolean,
     ): JSONObject {
         return try {
-            BiliApi.playUrlDash(bvid = bvid, cid = cid, qn = qn, fnval = fnval)
+            if (tryLook) {
+                BiliApi.playUrlDashTryLook(bvid = bvid, cid = cid, qn = qn, fnval = fnval)
+            } else {
+                BiliApi.playUrlDash(bvid = bvid, cid = cid, qn = qn, fnval = fnval)
+            }
         } catch (t: Throwable) {
             val e = t as? BiliApiException
             if (e != null && epId != null && epId > 0 && (e.apiCode == -404 || e.apiCode == -400)) {
-                BiliApi.pgcPlayUrl(bvid = bvid, cid = cid, epId = epId, qn = qn, fnval = fnval)
+                if (tryLook) {
+                    BiliApi.pgcPlayUrlTryLook(bvid = bvid, cid = cid, epId = epId, qn = qn, fnval = fnval)
+                } else {
+                    BiliApi.pgcPlayUrl(bvid = bvid, cid = cid, epId = epId, qn = qn, fnval = fnval)
+                }
             } else {
                 throw t
+            }
+        }
+    }
+
+    private fun trackHasAnyUrl(obj: JSONObject): Boolean {
+        val base =
+            obj.optString("baseUrl", obj.optString("base_url", obj.optString("url", "")))
+                .trim()
+        if (base.isNotBlank()) return true
+        val backup = obj.optJSONArray("backupUrl") ?: obj.optJSONArray("backup_url") ?: JSONArray()
+        for (i in 0 until backup.length()) {
+            val u = backup.optString(i, "").trim()
+            if (u.isNotBlank()) return true
+        }
+        return false
+    }
+
+    private fun hasAnyPlayableUrl(json: JSONObject): Boolean {
+        val data = json.optJSONObject("data") ?: json.optJSONObject("result") ?: return false
+        val dash = data.optJSONObject("dash")
+        if (dash != null) {
+            val videos = dash.optJSONArray("video") ?: JSONArray()
+            val audios = dash.optJSONArray("audio") ?: JSONArray()
+            val dolbyAudios = dash.optJSONObject("dolby")?.optJSONArray("audio") ?: JSONArray()
+            val flacAudio = dash.optJSONObject("flac")?.optJSONObject("audio")
+            for (i in 0 until videos.length()) {
+                val v = videos.optJSONObject(i) ?: continue
+                if (trackHasAnyUrl(v)) return true
+            }
+            for (i in 0 until audios.length()) {
+                val a = audios.optJSONObject(i) ?: continue
+                if (trackHasAnyUrl(a)) return true
+            }
+            for (i in 0 until dolbyAudios.length()) {
+                val a = dolbyAudios.optJSONObject(i) ?: continue
+                if (trackHasAnyUrl(a)) return true
+            }
+            if (flacAudio != null && trackHasAnyUrl(flacAudio)) return true
+        }
+
+        val durl = data.optJSONArray("durl") ?: JSONArray()
+        for (i in 0 until durl.length()) {
+            val obj = durl.optJSONObject(i) ?: continue
+            val url = obj.optString("url", "").trim()
+            if (url.isNotBlank()) return true
+        }
+        return false
+    }
+
+    private fun shouldAttemptTryLookFallback(playJson: JSONObject): Boolean {
+        // try_look is only a risk-control fallback: only use it when we truly cannot get any playable URL.
+        return !hasAnyPlayableUrl(playJson)
+    }
+
+    private suspend fun loadPlayableWithTryLookFallback(
+        bvid: String,
+        cid: Long,
+        epId: Long?,
+        qn: Int,
+        fnval: Int,
+        constraints: PlaybackConstraints,
+    ): PlayFetchResult {
+        val primaryJson =
+            try {
+                requestPlayJson(
+                    bvid = bvid,
+                    cid = cid,
+                    epId = epId,
+                    qn = qn,
+                    fnval = fnval,
+                    tryLook = false,
+                )
+            } catch (t: Throwable) {
+                val e = t as? BiliApiException
+                if (e != null && isRiskControl(e)) {
+                    val fallbackJson =
+                        requestPlayJson(
+                            bvid = bvid,
+                            cid = cid,
+                            epId = epId,
+                            qn = qn,
+                            fnval = fnval,
+                            tryLook = true,
+                        )
+                    fallbackJson.put("__blbl_risk_control_bypassed", true)
+                    fallbackJson.put("__blbl_risk_control_code", e.apiCode)
+                    fallbackJson.put("__blbl_risk_control_message", e.apiMessage)
+                    val playable = pickPlayable(fallbackJson, constraints)
+                    return PlayFetchResult(json = fallbackJson, playable = playable)
+                }
+                throw t
+            }
+
+        return try {
+            val playable = pickPlayable(primaryJson, constraints)
+            PlayFetchResult(json = primaryJson, playable = playable)
+        } catch (t: Throwable) {
+            if (!shouldAttemptTryLookFallback(primaryJson)) throw t
+
+            extractVVoucher(primaryJson)?.let { recordVVoucher(it) }
+
+            val fallbackJson =
+                requestPlayJson(
+                    bvid = bvid,
+                    cid = cid,
+                    epId = epId,
+                    qn = qn,
+                    fnval = fnval,
+                    tryLook = true,
+                )
+            fallbackJson.put("__blbl_risk_control_bypassed", true)
+            fallbackJson.put("__blbl_risk_control_code", -352)
+            fallbackJson.put("__blbl_risk_control_message", "fallback try_look after no playable stream")
+
+            return try {
+                val playable = pickPlayable(fallbackJson, constraints)
+                PlayFetchResult(json = fallbackJson, playable = playable)
+            } catch (t2: Throwable) {
+                AppLog.w("Player", "try_look fallback failed", t2)
+                throw BiliApiException(apiCode = -352, apiMessage = "风控拦截：未返回可播放地址（已尝试 try_look 兜底失败）")
             }
         }
     }
@@ -1092,7 +1242,7 @@ class PlayerActivity : AppCompatActivity() {
         val data = json.optJSONObject("data") ?: json.optJSONObject("result") ?: JSONObject()
         val vVoucher = data.optString("v_voucher", "").trim()
         if (vVoucher.isNotBlank()) {
-            error("风控拦截：v_voucher=$vVoucher")
+            recordVVoucher(vVoucher)
         }
         val dash = data.optJSONObject("dash")
         if (dash != null) {
@@ -1252,7 +1402,15 @@ class PlayerActivity : AppCompatActivity() {
             ?: error("cid missing for fallback")
         val bvid = currentBvid.ifBlank { intent.getStringExtra(EXTRA_BVID).orEmpty() }
         // Extra fallback: request MP4 directly (avoid deprecated fnval=0).
-        val fallbackJson = requestPlayUrlWithFallback(bvid = bvid, cid = cid, epId = currentEpId, qn = 127, fnval = 1)
+        val fallbackJson =
+            requestPlayJson(
+                bvid = bvid,
+                cid = cid,
+                epId = currentEpId,
+                qn = 127,
+                fnval = 1,
+                tryLook = false,
+            )
         val fallbackData = fallbackJson.optJSONObject("data") ?: fallbackJson.optJSONObject("result") ?: JSONObject()
         val fallbackObj = fallbackData.optJSONArray("durl")?.optJSONObject(0)
         val fallbackUrl =
@@ -1339,15 +1497,22 @@ class PlayerActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 val (qn, fnval) = playUrlParamsForSession()
-                val playJson = requestPlayUrlWithFallback(bvid = bvid, cid = cid, epId = currentEpId, qn = qn, fnval = fnval)
-                showRiskControlBypassHintIfNeeded(playJson)
-                lastAvailableQns = parseDashVideoQnList(playJson)
                 if (resetConstraints) {
                     playbackConstraints = PlaybackConstraints()
                     decodeFallbackAttempted = false
                     lastPickedDash = null
                 }
-                val playable = pickPlayable(playJson, playbackConstraints)
+                val (playJson, playable) =
+                    loadPlayableWithTryLookFallback(
+                        bvid = bvid,
+                        cid = cid,
+                        epId = currentEpId,
+                        qn = qn,
+                        fnval = fnval,
+                        constraints = playbackConstraints,
+                    )
+                showRiskControlBypassHintIfNeeded(playJson)
+                lastAvailableQns = parseDashVideoQnList(playJson)
                 val okHttpFactory = OkHttpDataSource.Factory(BiliClient.cdnOkHttp)
                 when (playable) {
                     is Playable.Dash -> {
@@ -1377,15 +1542,40 @@ class PlayerActivity : AppCompatActivity() {
         val e = t as? BiliApiException ?: return false
         if (!isRiskControl(e)) return false
 
+        val prefs = BiliClient.prefs
+        val savedVoucher = prefs.gaiaVgateVVoucher
+        val savedAt = prefs.gaiaVgateVVoucherSavedAtMs
+        val hasSavedVoucher = !savedVoucher.isNullOrBlank()
+
         val msg =
             buildString {
                 append("B 站返回：").append(e.apiCode).append(" / ").append(e.apiMessage)
                 append("\n\n")
-                append("你的账号或网络环境可能触发风控，建议重新登录或稍后重试。")
+                if (e.apiCode == -352 && hasSavedVoucher) {
+                    append("已记录 v_voucher，可到“设置 -> 风控验证”手动完成人机验证后重试播放。")
+                    if (savedAt > 0L) {
+                        append("\n")
+                        append("记录时间：").append(android.text.format.DateFormat.format("yyyy-MM-dd HH:mm", savedAt))
+                    }
+                } else {
+                    append("你的账号或网络环境可能触发风控，建议重新登录或稍后重试。")
+                }
                 append("\n")
                 append("如持续出现，请向作者反馈日志。")
             }
-        Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+
+        if (e.apiCode == -352 && hasSavedVoucher) {
+            MaterialAlertDialogBuilder(this)
+                .setTitle("需要风控验证")
+                .setMessage(msg)
+                .setPositiveButton("去设置") { _, _ ->
+                    startActivity(Intent(this, SettingsActivity::class.java))
+                }
+                .setNegativeButton("关闭", null)
+                .show()
+        } else {
+            Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+        }
         return true
     }
 

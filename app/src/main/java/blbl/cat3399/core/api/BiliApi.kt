@@ -28,44 +28,31 @@ object BiliApi {
     private const val TAG = "BiliApi"
     private const val PILI_REFERER = "https://www.bilibili.com"
 
-    private fun piliCookieHeader(): String? {
-        // Match PiliPlus' common cookie set for web APIs.
-        val names =
-            listOf(
-                "SESSDATA",
-                "bili_jct",
-                "DedeUserID",
-                "DedeUserID__ckMd5",
-                "sid",
-                "buvid3",
-            )
-        val parts = ArrayList<String>(names.size)
-        for (name in names) {
-            val v = BiliClient.cookies.getCookieValue(name)?.takeIf { it.isNotBlank() } ?: continue
-            parts.add("$name=$v")
-        }
-        return parts.takeIf { it.isNotEmpty() }?.joinToString("; ")
+    private fun extractVVoucher(json: JSONObject): String? {
+        val data = json.optJSONObject("data") ?: json.optJSONObject("result") ?: return null
+        return data.optString("v_voucher", "").trim().takeIf { it.isNotBlank() }
     }
 
-    private fun piliWebHeaders(includeCookie: Boolean = true): Map<String, String> {
-        val out = piliHeaders().toMutableMap()
+    private fun piliWebHeaders(targetUrl: String, includeCookie: Boolean = true): Map<String, String> {
+        val out = piliHeaders(includeMid = includeCookie).toMutableMap()
         out["Referer"] = PILI_REFERER
         // Tell OkHttp interceptor to not add Origin (PiliPlus does not send it for this flow).
         out["X-Blbl-Skip-Origin"] = "1"
         if (includeCookie) {
-            val cookie = piliCookieHeader()
+            val cookie = BiliClient.cookies.cookieHeaderFor(targetUrl)
             if (!cookie.isNullOrBlank()) out["Cookie"] = cookie
         }
         return out
     }
 
-    private fun piliHeaders(): Map<String, String> {
+    private fun piliHeaders(includeMid: Boolean = true): Map<String, String> {
         val headers =
             mutableMapOf(
                 "env" to "prod",
                 "app-key" to "android64",
                 "x-bili-aurora-zone" to "sh001",
             )
+        if (!includeMid) return headers
         val midStr = BiliClient.cookies.getCookieValue("DedeUserID")?.trim().orEmpty()
         val mid = midStr.toLongOrNull()?.takeIf { it > 0 } ?: return headers
         headers["x-bili-mid"] = mid.toString()
@@ -80,6 +67,76 @@ object BiliApi {
         val out = ByteArray(input.size)
         for (i in input.indices) out[i] = (input[i].toInt() xor key[i % key.size].toInt()).toByte()
         return Base64.encodeToString(out, Base64.NO_PADDING or Base64.NO_WRAP)
+    }
+
+    data class GaiaVgateRegister(
+        val gt: String,
+        val challenge: String,
+        val token: String,
+    )
+
+    suspend fun gaiaVgateRegister(vVoucher: String): GaiaVgateRegister {
+        val csrf = BiliClient.cookies.getCookieValue("bili_jct").orEmpty()
+        val url =
+            BiliClient.withQuery(
+                "https://api.bilibili.com/x/gaia-vgate/v1/register",
+                if (csrf.isNotBlank()) mapOf("csrf" to csrf) else emptyMap(),
+            )
+        val json =
+            BiliClient.postFormJson(
+                url,
+                form = mapOf("v_voucher" to vVoucher),
+                headers = piliWebHeaders(targetUrl = url, includeCookie = true),
+                noCookies = true,
+            )
+        val code = json.optInt("code", 0)
+        if (code != 0) {
+            val msg = json.optString("message", json.optString("msg", ""))
+            throw BiliApiException(apiCode = code, apiMessage = msg)
+        }
+        val data = json.optJSONObject("data") ?: JSONObject()
+        val token = data.optString("token", "").trim()
+        val geetest = data.optJSONObject("geetest") ?: JSONObject()
+        val gt = geetest.optString("gt", "").trim()
+        val challenge = geetest.optString("challenge", "").trim()
+        if (token.isBlank() || gt.isBlank() || challenge.isBlank()) error("gaia_vgate_register_invalid_data")
+        return GaiaVgateRegister(gt = gt, challenge = challenge, token = token)
+    }
+
+    suspend fun gaiaVgateValidate(
+        token: String,
+        geetestChallenge: String,
+        validate: String,
+        seccode: String,
+    ): String {
+        val csrf = BiliClient.cookies.getCookieValue("bili_jct").orEmpty()
+        val url =
+            BiliClient.withQuery(
+                "https://api.bilibili.com/x/gaia-vgate/v1/validate",
+                if (csrf.isNotBlank()) mapOf("csrf" to csrf) else emptyMap(),
+            )
+        val json =
+            BiliClient.postFormJson(
+                url,
+                form =
+                    mapOf(
+                        "token" to token,
+                        "challenge" to geetestChallenge,
+                        "validate" to validate,
+                        "seccode" to seccode,
+                    ),
+                headers = piliWebHeaders(targetUrl = url, includeCookie = true),
+                noCookies = true,
+            )
+        val code = json.optInt("code", 0)
+        if (code != 0) {
+            val msg = json.optString("message", json.optString("msg", ""))
+            throw BiliApiException(apiCode = code, apiMessage = msg)
+        }
+        val data = json.optJSONObject("data") ?: JSONObject()
+        val isValid = data.optInt("is_valid", 0)
+        if (isValid != 1) error("gaia_vgate_validate_invalid")
+        return data.optString("grisk_id", "").trim().takeIf { it.isNotBlank() } ?: error("gaia_vgate_validate_missing_grisk_id")
     }
 
     data class PagedResult<T>(
@@ -981,10 +1038,11 @@ object BiliApi {
             "https://api.bilibili.com/x/player/online/total",
             mapOf("bvid" to bvid, "cid" to cid.toString()),
         )
-        return BiliClient.getJson(url, headers = piliWebHeaders(includeCookie = true), noCookies = true)
+        return BiliClient.getJson(url, headers = piliWebHeaders(targetUrl = url, includeCookie = true), noCookies = true)
     }
 
     suspend fun playUrlDash(bvid: String, cid: Long, qn: Int = 80, fnval: Int = 16): JSONObject {
+        WebCookieMaintainer.ensureHealthyForPlay()
         val keys = BiliClient.ensureWbiKeys()
         val hasSessData = BiliClient.cookies.hasSessData()
         @Suppress("UNUSED_VARIABLE")
@@ -1002,6 +1060,9 @@ object BiliApi {
                 "gaia_source" to "pre-load",
                 "isGaiaAvoided" to "true",
             )
+        BiliClient.cookies.getCookieValue("x-bili-gaia-vtoken")?.trim()?.takeIf { it.isNotBlank() }?.let {
+            params["gaia_vtoken"] = it
+        }
         if (!hasSessData) {
             params["try_look"] = "1"
         }
@@ -1009,7 +1070,35 @@ object BiliApi {
             path = "/x/player/wbi/playurl",
             params = params,
             keys = keys,
-            headers = piliWebHeaders(includeCookie = true),
+            headersProvider = { url -> piliWebHeaders(targetUrl = url, includeCookie = true) },
+            noCookies = true,
+        )
+    }
+
+    suspend fun playUrlDashTryLook(bvid: String, cid: Long, qn: Int = 80, fnval: Int = 16): JSONObject {
+        WebCookieMaintainer.ensureHealthyForPlay()
+        val keys = BiliClient.ensureWbiKeys()
+        @Suppress("UNUSED_VARIABLE")
+        val requestedFnval = fnval
+        val params =
+            mutableMapOf(
+                "bvid" to bvid,
+                "cid" to cid.toString(),
+                "qn" to qn.toString(),
+                "fnver" to "0",
+                "fnval" to "4048",
+                "fourk" to "1",
+                "voice_balance" to "1",
+                "web_location" to "1315873",
+                "gaia_source" to "pre-load",
+                "isGaiaAvoided" to "true",
+                "try_look" to "1",
+            )
+        return requestPlayUrl(
+            path = "/x/player/wbi/playurl",
+            params = params,
+            keys = keys,
+            headersProvider = { url -> piliWebHeaders(targetUrl = url, includeCookie = false) },
             noCookies = true,
         )
     }
@@ -1033,17 +1122,20 @@ object BiliApi {
                 "from_client" to "BROWSER",
                 "drm_tech_type" to "2",
             )
+        BiliClient.cookies.getCookieValue("x-bili-gaia-vtoken")?.trim()?.takeIf { it.isNotBlank() }?.let {
+            params["gaia_vtoken"] = it
+        }
         cid?.takeIf { it > 0 }?.let { params["cid"] = it.toString() }
         epId?.takeIf { it > 0 }?.let { params["ep_id"] = it.toString() }
 
-        fun hasVVoucher(json: JSONObject): Boolean {
-            val data = json.optJSONObject("data") ?: json.optJSONObject("result") ?: JSONObject()
-            return data.optString("v_voucher", "").trim().isNotBlank()
-        }
-
         suspend fun request(params: Map<String, String>, includeCookie: Boolean): JSONObject {
             val url = BiliClient.withQuery("https://api.bilibili.com/pgc/player/web/playurl", params)
-            val json = BiliClient.getJson(url, headers = piliWebHeaders(includeCookie = includeCookie), noCookies = true)
+            val json =
+                BiliClient.getJson(
+                    url,
+                    headers = piliWebHeaders(targetUrl = url, includeCookie = includeCookie),
+                    noCookies = true,
+                )
             val code = json.optInt("code", 0)
             if (code != 0) {
                 val msg = json.optString("message", json.optString("msg", ""))
@@ -1051,18 +1143,50 @@ object BiliApi {
             }
             val result = json.optJSONObject("result") ?: JSONObject()
             if (json.optJSONObject("data") == null) json.put("data", result)
-            if (hasVVoucher(json)) error("risk_control_voucher")
             return json
         }
 
-        return try {
-            request(params = params, includeCookie = true)
-        } catch (t: Throwable) {
-            // Final fallback: noCookies + try_look=1 (attempt preview without login cookies).
-            val fallback = params.toMutableMap()
-            fallback["try_look"] = "1"
-            request(params = fallback, includeCookie = false)
+        return request(params = params, includeCookie = true)
+    }
+
+    suspend fun pgcPlayUrlTryLook(
+        bvid: String,
+        cid: Long? = null,
+        epId: Long? = null,
+        qn: Int = 80,
+        fnval: Int = 16,
+    ): JSONObject {
+        WebCookieMaintainer.ensureWebFingerprintCookies()
+        WebCookieMaintainer.ensureDailyMaintenance()
+        val params =
+            mutableMapOf(
+                "bvid" to bvid,
+                "qn" to qn.toString(),
+                "fnver" to "0",
+                "fnval" to fnval.toString(),
+                "fourk" to "1",
+                "from_client" to "BROWSER",
+                "drm_tech_type" to "2",
+                "try_look" to "1",
+            )
+        cid?.takeIf { it > 0 }?.let { params["cid"] = it.toString() }
+        epId?.takeIf { it > 0 }?.let { params["ep_id"] = it.toString() }
+
+        val url = BiliClient.withQuery("https://api.bilibili.com/pgc/player/web/playurl", params)
+        val json =
+            BiliClient.getJson(
+                url,
+                headers = piliWebHeaders(targetUrl = url, includeCookie = false),
+                noCookies = true,
+            )
+        val code = json.optInt("code", 0)
+        if (code != 0) {
+            val msg = json.optString("message", json.optString("msg", ""))
+            throw BiliApiException(apiCode = code, apiMessage = msg)
         }
+        val result = json.optJSONObject("result") ?: JSONObject()
+        if (json.optJSONObject("data") == null) json.put("data", result)
+        return json
     }
 
     suspend fun playerWbiV2(bvid: String, cid: Long): JSONObject {
@@ -1075,12 +1199,16 @@ object BiliApi {
             )
         val url = BiliClient.signedWbiUrl(path = "/x/player/wbi/v2", params = params, keys = keys)
         return try {
-            BiliClient.getJson(url, headers = piliWebHeaders(includeCookie = true), noCookies = true)
+            BiliClient.getJson(url, headers = piliWebHeaders(targetUrl = url, includeCookie = true), noCookies = true)
         } catch (t: Throwable) {
             // Final fallback: noCookies + try_look=1.
             params["try_look"] = "1"
             val fallbackUrl = BiliClient.signedWbiUrl(path = "/x/player/wbi/v2", params = params, keys = keys)
-            BiliClient.getJson(fallbackUrl, headers = piliWebHeaders(includeCookie = false), noCookies = true)
+            BiliClient.getJson(
+                fallbackUrl,
+                headers = piliWebHeaders(targetUrl = fallbackUrl, includeCookie = false),
+                noCookies = true,
+            )
         }
     }
 
@@ -1094,7 +1222,7 @@ object BiliApi {
                     "segment_index" to segmentIndex.toString(),
                 ),
             )
-            val bytes = BiliClient.getBytes(url, headers = piliWebHeaders(includeCookie = true), noCookies = true)
+            val bytes = BiliClient.getBytes(url, headers = piliWebHeaders(targetUrl = url, includeCookie = true), noCookies = true)
             val reply = DmSegMobileReply.parseFrom(bytes)
             val list = reply.elemsList.mapNotNull { e ->
                 val text = e.content ?: return@mapNotNull null
@@ -1122,7 +1250,7 @@ object BiliApi {
         )
         if (aid != null && aid > 0) params["pid"] = aid.toString()
         val url = BiliClient.withQuery("https://api.bilibili.com/x/v2/dm/web/view", params)
-        val bytes = BiliClient.getBytes(url, headers = piliWebHeaders(includeCookie = true), noCookies = true)
+        val bytes = BiliClient.getBytes(url, headers = piliWebHeaders(targetUrl = url, includeCookie = true), noCookies = true)
         val reply = DmWebViewReply.parseFrom(bytes)
 
         val seg = reply.dmSge
@@ -1390,11 +1518,11 @@ object BiliApi {
         path: String,
         params: Map<String, String>,
         keys: blbl.cat3399.core.net.WbiSigner.Keys,
-        headers: Map<String, String> = emptyMap(),
+        headersProvider: ((String) -> Map<String, String>)? = null,
         noCookies: Boolean = false,
     ): JSONObject {
         val url = BiliClient.signedWbiUrl(path = path, params = params, keys = keys)
-        val json = BiliClient.getJson(url, headers = headers, noCookies = noCookies)
+        val json = BiliClient.getJson(url, headers = headersProvider?.invoke(url) ?: emptyMap(), noCookies = noCookies)
         val code = json.optInt("code", 0)
         if (code != 0) {
             val msg = json.optString("message", json.optString("msg", ""))

@@ -11,6 +11,7 @@ import android.view.View
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -22,11 +23,13 @@ import blbl.cat3399.core.tv.TvMode
 import blbl.cat3399.core.ui.Immersive
 import blbl.cat3399.core.update.TestApkUpdater
 import blbl.cat3399.databinding.ActivitySettingsBinding
+import blbl.cat3399.feature.risk.GaiaVgateActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import okhttp3.Cookie
 import java.util.Locale
 
 class SettingsActivity : AppCompatActivity() {
@@ -42,6 +45,18 @@ class SettingsActivity : AppCompatActivity() {
     private var pendingRestoreRightTitle: String? = null
     private var pendingRestoreLeftIndex: Int? = null
     private var pendingRestoreBack: Boolean = false
+
+    private val gaiaVgateLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode != RESULT_OK) return@registerForActivityResult
+            val token = result.data?.getStringExtra(GaiaVgateActivity.EXTRA_GAIA_VTOKEN)?.trim()?.takeIf { it.isNotBlank() } ?: return@registerForActivityResult
+            upsertGaiaVtokenCookie(token)
+            val prefs = BiliClient.prefs
+            prefs.gaiaVgateVVoucher = null
+            prefs.gaiaVgateVVoucherSavedAtMs = -1L
+            Toast.makeText(this, "验证成功，已写入风控票据", Toast.LENGTH_SHORT).show()
+            refreshSection("风控验证")
+        }
 
     private val sections = listOf(
         "通用设置",
@@ -177,6 +192,7 @@ class SettingsActivity : AppCompatActivity() {
             "通用设置" -> listOf(
                 SettingEntry("图片质量", prefs.imageQuality, "影响封面/头像 URL 追加参数"),
                 SettingEntry("User-Agent", prefs.userAgent.take(60), "点击可编辑/重置（影响 CDN/接口风控）"),
+                SettingEntry("风控验证", gaiaVgateStatusText(), "播放被拦截后可在此手动完成人机验证"),
                 SettingEntry("清除登录", if (BiliClient.cookies.hasSessData()) "已登录" else "未登录", "清除 Cookie（SESSDATA 等）"),
             )
 
@@ -257,6 +273,7 @@ class SettingsActivity : AppCompatActivity() {
             }
 
             "User-Agent" -> showUserAgentDialog(currentSectionIndex, entry.title)
+            "风控验证" -> showGaiaVgateDialog(currentSectionIndex, entry.title)
             "清除登录" -> showClearLoginDialog(currentSectionIndex, entry.title)
 
             "以全屏模式运行" -> {
@@ -528,6 +545,110 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    private fun gaiaVgateStatusText(): String {
+        val now = System.currentTimeMillis()
+        val tokenCookie = BiliClient.cookies.getCookie("x-bili-gaia-vtoken")
+        val tokenOk = tokenCookie != null && tokenCookie.expiresAt > now
+        val voucherOk = !BiliClient.prefs.gaiaVgateVVoucher.isNullOrBlank()
+        return when {
+            tokenOk -> "已通过"
+            voucherOk -> "待验证"
+            else -> "无"
+        }
+    }
+
+    private fun showGaiaVgateDialog(sectionIndex: Int, focusTitle: String) {
+        val prefs = BiliClient.prefs
+        val now = System.currentTimeMillis()
+        val tokenCookie = BiliClient.cookies.getCookie("x-bili-gaia-vtoken")
+        val tokenOk = tokenCookie != null && tokenCookie.expiresAt > now
+        val expiresAt = tokenCookie?.expiresAt ?: -1L
+
+        val vVoucher = prefs.gaiaVgateVVoucher.orEmpty().trim()
+        val hasVoucher = vVoucher.isNotBlank()
+        val savedAt = prefs.gaiaVgateVVoucherSavedAtMs
+
+        val msg =
+            buildString {
+                append("用于处理播放接口返回 v_voucher 的人机验证（极验）。")
+                append("\n\n")
+                append("当前票据：")
+                append(if (tokenOk) "有效" else "无/已过期")
+                if (tokenOk && expiresAt > 0L) {
+                    append("\n")
+                    append("过期时间：").append(android.text.format.DateFormat.format("yyyy-MM-dd HH:mm", expiresAt))
+                }
+                append("\n\n")
+                append("v_voucher：")
+                append(if (hasVoucher) "已记录" else "暂无")
+                if (hasVoucher && savedAt > 0L) {
+                    append("\n")
+                    append("记录时间：").append(android.text.format.DateFormat.format("yyyy-MM-dd HH:mm", savedAt))
+                }
+            }
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("风控验证")
+            .setMessage(msg)
+            .setPositiveButton(if (hasVoucher) "开始验证" else "粘贴 v_voucher") { _, _ ->
+                if (hasVoucher) {
+                    gaiaVgateLauncher.launch(
+                        Intent(this, GaiaVgateActivity::class.java)
+                            .putExtra(GaiaVgateActivity.EXTRA_V_VOUCHER, vVoucher),
+                    )
+                } else {
+                    showGaiaVgateVoucherDialog(sectionIndex, focusTitle)
+                }
+            }
+            .setNeutralButton("编辑 v_voucher") { _, _ ->
+                showGaiaVgateVoucherDialog(sectionIndex, focusTitle)
+            }
+            .setNegativeButton("关闭", null)
+            .show()
+    }
+
+    private fun showGaiaVgateVoucherDialog(sectionIndex: Int, focusTitle: String) {
+        val prefs = BiliClient.prefs
+        val input = EditText(this).apply {
+            setText(prefs.gaiaVgateVVoucher.orEmpty())
+            setSelection(text.length)
+            hint = "粘贴 v_voucher"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_NORMAL
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("编辑 v_voucher")
+            .setView(input)
+            .setPositiveButton("保存") { _, _ ->
+                val v = input.text?.toString().orEmpty().trim()
+                prefs.gaiaVgateVVoucher = v.takeIf { it.isNotBlank() }
+                prefs.gaiaVgateVVoucherSavedAtMs = if (v.isNotBlank()) System.currentTimeMillis() else -1L
+                Toast.makeText(this, if (v.isNotBlank()) "已保存 v_voucher" else "已清除 v_voucher", Toast.LENGTH_SHORT).show()
+                showSection(sectionIndex, focusTitle = focusTitle)
+            }
+            .setNeutralButton("清除") { _, _ ->
+                prefs.gaiaVgateVVoucher = null
+                prefs.gaiaVgateVVoucherSavedAtMs = -1L
+                Toast.makeText(this, "已清除 v_voucher", Toast.LENGTH_SHORT).show()
+                showSection(sectionIndex, focusTitle = focusTitle)
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun upsertGaiaVtokenCookie(token: String) {
+        val expiresAt = System.currentTimeMillis() + 12 * 60 * 60 * 1000L
+        val cookie =
+            Cookie.Builder()
+                .name("x-bili-gaia-vtoken")
+                .value(token)
+                .domain("bilibili.com")
+                .path("/")
+                .expiresAt(expiresAt)
+                .secure()
+                .build()
+        BiliClient.cookies.upsert(cookie)
+    }
+
     private fun restorePendingFocus(): Boolean {
         if (pendingRestoreBack) {
             pendingRestoreBack = false
@@ -753,6 +874,8 @@ class SettingsActivity : AppCompatActivity() {
                 BiliClient.prefs.webRefreshToken = null
                 BiliClient.prefs.webCookieRefreshCheckedEpochDay = -1L
                 BiliClient.prefs.biliTicketCheckedEpochDay = -1L
+                BiliClient.prefs.gaiaVgateVVoucher = null
+                BiliClient.prefs.gaiaVgateVVoucherSavedAtMs = -1L
                 Toast.makeText(this, "已清除 Cookie", Toast.LENGTH_SHORT).show()
                 showSection(sectionIndex, focusTitle = focusTitle)
             }

@@ -38,6 +38,10 @@ class AppPrefs(context: Context) {
         get() = prefs.getLong(KEY_BUVID_ACTIVATED_MID, 0L)
         set(value) = prefs.edit().putLong(KEY_BUVID_ACTIVATED_MID, value).apply()
 
+    var buvidActivatedEpochDay: Long
+        get() = prefs.getLong(KEY_BUVID_ACTIVATED_EPOCH_DAY, -1L)
+        set(value) = prefs.edit().putLong(KEY_BUVID_ACTIVATED_EPOCH_DAY, value).apply()
+
     var imageQuality: String
         get() = prefs.getString(KEY_IMAGE_QUALITY, "medium") ?: "medium"
         set(value) = prefs.edit().putString(KEY_IMAGE_QUALITY, value).apply()
@@ -146,6 +150,14 @@ class AppPrefs(context: Context) {
         get() = loadStringList(KEY_SEARCH_HISTORY)
         set(value) = saveStringList(KEY_SEARCH_HISTORY, value)
 
+    var gaiaVgateVVoucher: String?
+        get() = prefs.getString(KEY_GAIA_VGATE_V_VOUCHER, null)?.trim()?.takeIf { it.isNotBlank() }
+        set(value) = prefs.edit().putString(KEY_GAIA_VGATE_V_VOUCHER, value?.trim()).apply()
+
+    var gaiaVgateVVoucherSavedAtMs: Long
+        get() = prefs.getLong(KEY_GAIA_VGATE_V_VOUCHER_SAVED_AT_MS, -1L)
+        set(value) = prefs.edit().putLong(KEY_GAIA_VGATE_V_VOUCHER_SAVED_AT_MS, value).apply()
+
     fun addSearchHistory(keyword: String, maxSize: Int = 20) {
         val k = keyword.trim()
         if (k.isBlank()) return
@@ -199,6 +211,7 @@ class AppPrefs(context: Context) {
         private const val KEY_UA = "ua"
         private const val KEY_DEVICE_BUVID = "device_buvid"
         private const val KEY_BUVID_ACTIVATED_MID = "buvid_activated_mid"
+        private const val KEY_BUVID_ACTIVATED_EPOCH_DAY = "buvid_activated_epoch_day"
         private const val KEY_UI_MODE = "ui_mode"
         private const val KEY_IMAGE_QUALITY = "image_quality"
         private const val KEY_DANMAKU_ENABLED = "danmaku_enabled"
@@ -227,6 +240,8 @@ class AppPrefs(context: Context) {
         private const val KEY_GRID_SPAN = "grid_span"
         private const val KEY_DYNAMIC_GRID_SPAN = "dynamic_grid_span"
         private const val KEY_SEARCH_HISTORY = "search_history"
+        private const val KEY_GAIA_VGATE_V_VOUCHER = "gaia_vgate_v_voucher"
+        private const val KEY_GAIA_VGATE_V_VOUCHER_SAVED_AT_MS = "gaia_vgate_v_voucher_saved_at_ms"
 
         // PC browser UA is used to reduce CDN 403 for media resources.
         const val DEFAULT_UA =

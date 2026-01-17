@@ -6,6 +6,7 @@ import blbl.cat3399.core.log.AppLog
 import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
@@ -40,6 +41,21 @@ class CookieStore(
         val list = store.values.flatten().filter { it.expiresAt >= now && it.matches(url) }
         if (list.isNotEmpty()) AppLog.v("CookieStore", "loadForRequest host=${url.host} cookies=${list.size}")
         return list
+    }
+
+    fun cookieHeaderFor(url: String): String? {
+        val httpUrl = runCatching { url.toHttpUrl() }.getOrNull() ?: return null
+        return cookieHeaderFor(httpUrl)
+    }
+
+    fun cookieHeaderFor(url: HttpUrl): String? {
+        val cookies = loadForRequest(url).toMutableList()
+        if (cookies.isEmpty()) return null
+        cookies.sortWith(
+            compareByDescending<Cookie> { it.path.length }
+                .thenBy { it.name },
+        )
+        return cookies.joinToString("; ") { "${it.name}=${it.value}" }
     }
 
     fun hasSessData(): Boolean {

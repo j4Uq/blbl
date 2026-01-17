@@ -28,6 +28,9 @@ import kotlin.math.min
 class QrLoginActivity : AppCompatActivity() {
     private lateinit var binding: ActivityQrLoginBinding
     private var pollJob: Job? = null
+    private val tvLoginUserAgent =
+        "Mozilla/5.0 BiliDroid/2.0.1 (bbcallen@gmail.com) os/android model/android_hd mobi_app/android_hd " +
+            "build/2001100 channel/master innerVer/2001100 osVer/15 network/2"
     private val passportHeaders =
         mapOf(
             "Referer" to "https://passport.bilibili.com/",
@@ -39,6 +42,7 @@ class QrLoginActivity : AppCompatActivity() {
             put("buvid", BiliClient.prefs.deviceBuvid)
             put("env", "prod")
             put("app-key", "android_hd")
+            put("User-Agent", tvLoginUserAgent)
             put("x-bili-trace-id", "11111111111111111111111111111111:1111111111111111:0:0")
             put("x-bili-aurora-eid", "")
             put("x-bili-aurora-zone", "")
@@ -207,7 +211,7 @@ class QrLoginActivity : AppCompatActivity() {
                                 }
                                 if (out.isNotEmpty()) BiliClient.cookies.upsertAll(out)
                             }
-                            WebCookieMaintainer.ensureBuvidActiveOnce()
+                            WebCookieMaintainer.ensureBuvidActiveOncePerDay()
                             binding.tvStatus.text = "登录成功，Cookie 已写入（返回上一页）"
                             AppLog.i("QrLogin", "login success sess=${BiliClient.cookies.hasSessData()}")
                             binding.tvDebug.text = "login ok sess=${BiliClient.cookies.hasSessData()}"

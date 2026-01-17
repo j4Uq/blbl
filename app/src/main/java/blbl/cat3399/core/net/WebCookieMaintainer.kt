@@ -46,10 +46,11 @@ object WebCookieMaintainer {
 
     private val cookieRefreshMutex = Mutex()
 
-    suspend fun ensureBuvidActiveOnce() {
+    suspend fun ensureBuvidActiveOncePerDay(nowMs: Long = System.currentTimeMillis()) {
         val midStr = BiliClient.cookies.getCookieValue("DedeUserID")?.trim().orEmpty()
         val mid = midStr.toLongOrNull()?.takeIf { it > 0 } ?: return
-        if (BiliClient.prefs.buvidActivatedMid == mid) return
+        val epochDay = nowMs / 86_400_000L
+        if (BiliClient.prefs.buvidActivatedMid == mid && BiliClient.prefs.buvidActivatedEpochDay == epochDay) return
 
         runCatching {
             val rand = ByteArray(32 + 8 + 4)
@@ -116,6 +117,7 @@ object WebCookieMaintainer {
             )
 
             BiliClient.prefs.buvidActivatedMid = mid
+            BiliClient.prefs.buvidActivatedEpochDay = epochDay
             AppLog.i(TAG, "buvidActive ok mid=$mid")
         }.onFailure {
             AppLog.w(TAG, "buvidActive failed", it)
@@ -133,6 +135,7 @@ object WebCookieMaintainer {
 
     suspend fun ensureHealthyForPlay() {
         ensureWebFingerprintCookies()
+        ensureBuvidActiveOncePerDay()
         ensureBiliTicket()
         refreshCookieIfNeededOncePerDay()
     }
