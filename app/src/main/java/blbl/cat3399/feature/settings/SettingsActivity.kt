@@ -21,6 +21,7 @@ import blbl.cat3399.core.log.AppLog
 import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.tv.TvMode
 import blbl.cat3399.core.ui.Immersive
+import blbl.cat3399.core.ui.SingleChoiceDialog
 import blbl.cat3399.core.update.TestApkUpdater
 import blbl.cat3399.databinding.ActivitySettingsBinding
 import blbl.cat3399.feature.risk.GaiaVgateActivity
@@ -824,15 +825,16 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun showChoiceDialog(title: String, items: List<String>, current: String, onPicked: (String) -> Unit) {
-        val checked = items.indexOf(current).coerceAtLeast(-1)
-        MaterialAlertDialogBuilder(this)
-            .setTitle(title)
-            .setSingleChoiceItems(items.toTypedArray(), checked) { dialog, which ->
-                if (which in items.indices) onPicked(items[which])
-                dialog.dismiss()
-            }
-            .setNegativeButton("取消", null)
-            .show()
+        val checked = items.indexOf(current).coerceAtLeast(0)
+        SingleChoiceDialog.show(
+            context = this,
+            title = title,
+            items = items,
+            checkedIndex = checked,
+            negativeText = "取消",
+        ) { _, label ->
+            onPicked(label)
+        }
     }
 
     private fun showUserAgentDialog(sectionIndex: Int, focusTitle: String) {

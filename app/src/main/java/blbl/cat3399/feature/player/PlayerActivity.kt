@@ -42,6 +42,7 @@ import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.prefs.AppPrefs
 import blbl.cat3399.core.tv.TvMode
 import blbl.cat3399.core.ui.Immersive
+import blbl.cat3399.core.ui.SingleChoiceDialog
 import blbl.cat3399.feature.settings.SettingsActivity
 import blbl.cat3399.databinding.ActivityPlayerBinding
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -1458,34 +1459,36 @@ class PlayerActivity : AppCompatActivity() {
     private fun showCodecDialog() {
         val options = arrayOf("AVC", "HEVC", "AV1")
         val current = options.indexOf(session.preferCodec).coerceAtLeast(0)
-        MaterialAlertDialogBuilder(this)
-            .setTitle("视频编码")
-            .setSingleChoiceItems(options, current) { dialog, which ->
-                val selected = options.getOrNull(which) ?: "AVC"
-                session = session.copy(preferCodec = selected)
-                refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
-                dialog.dismiss()
-                reloadStream(keepPosition = true)
-            }
-            .setNegativeButton("取消", null)
-            .show()
+        SingleChoiceDialog.show(
+            context = this,
+            title = "视频编码",
+            items = options.toList(),
+            checkedIndex = current,
+            negativeText = "取消",
+        ) { which, _ ->
+            val selected = options.getOrNull(which) ?: "AVC"
+            session = session.copy(preferCodec = selected)
+            refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
+            reloadStream(keepPosition = true)
+        }
     }
 
     private fun showSpeedDialog() {
         val options = arrayOf("0.50x", "0.75x", "1.00x", "1.25x", "1.50x", "2.00x")
         val current = options.indexOf(String.format(Locale.US, "%.2fx", session.playbackSpeed)).let { if (it >= 0) it else 2 }
-        MaterialAlertDialogBuilder(this)
-            .setTitle("播放速度")
-            .setSingleChoiceItems(options, current) { dialog, which ->
-                val selected = options.getOrNull(which) ?: "1.00x"
-                val v = selected.removeSuffix("x").toFloatOrNull() ?: 1.0f
-                session = session.copy(playbackSpeed = v)
-                player?.setPlaybackSpeed(v)
-                refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
-                dialog.dismiss()
-            }
-            .setNegativeButton("取消", null)
-            .show()
+        SingleChoiceDialog.show(
+            context = this,
+            title = "播放速度",
+            items = options.toList(),
+            checkedIndex = current,
+            negativeText = "取消",
+        ) { which, _ ->
+            val selected = options.getOrNull(which) ?: "1.00x"
+            val v = selected.removeSuffix("x").toFloatOrNull() ?: 1.0f
+            session = session.copy(playbackSpeed = v)
+            player?.setPlaybackSpeed(v)
+            refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
+        }
     }
 
     private fun reloadStream(keepPosition: Boolean, resetConstraints: Boolean = true) {
@@ -1666,53 +1669,56 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun showDanmakuOpacityDialog() {
         val options = listOf(1.0f, 0.8f, 0.6f, 0.4f, 0.2f)
-        val items = options.map { String.format(Locale.US, "%.2f", it) }.toTypedArray()
+        val items = options.map { String.format(Locale.US, "%.2f", it) }
         val current = options.indexOfFirst { kotlin.math.abs(it - session.danmaku.opacity) < 0.01f }.let { if (it >= 0) it else 0 }
-        MaterialAlertDialogBuilder(this)
-            .setTitle("弹幕透明度")
-            .setSingleChoiceItems(items, current) { dialog, which ->
-                val v = options.getOrNull(which) ?: session.danmaku.opacity
-                session = session.copy(danmaku = session.danmaku.copy(opacity = v))
-                binding.danmakuView.invalidate()
-                refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
-                dialog.dismiss()
-            }
-            .setNegativeButton("取消", null)
-            .show()
+        SingleChoiceDialog.show(
+            context = this,
+            title = "弹幕透明度",
+            items = items,
+            checkedIndex = current,
+            negativeText = "取消",
+        ) { which, _ ->
+            val v = options.getOrNull(which) ?: session.danmaku.opacity
+            session = session.copy(danmaku = session.danmaku.copy(opacity = v))
+            binding.danmakuView.invalidate()
+            refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
+        }
     }
 
     private fun showDanmakuTextSizeDialog() {
         val options = listOf(14, 16, 18, 20, 22, 24, 28, 32, 36, 40)
         val items = options.map { it.toString() }.toTypedArray()
         val current = options.indexOf(session.danmaku.textSizeSp.toInt()).let { if (it >= 0) it else 2 }
-        MaterialAlertDialogBuilder(this)
-            .setTitle("弹幕字号(sp)")
-            .setSingleChoiceItems(items, current) { dialog, which ->
-                val v = (options.getOrNull(which) ?: session.danmaku.textSizeSp.toInt()).toFloat()
-                session = session.copy(danmaku = session.danmaku.copy(textSizeSp = v))
-                binding.danmakuView.invalidate()
-                refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
-                dialog.dismiss()
-            }
-            .setNegativeButton("取消", null)
-            .show()
+        SingleChoiceDialog.show(
+            context = this,
+            title = "弹幕字号(sp)",
+            items = items.toList(),
+            checkedIndex = current,
+            negativeText = "取消",
+        ) { which, _ ->
+            val v = (options.getOrNull(which) ?: session.danmaku.textSizeSp.toInt()).toFloat()
+            session = session.copy(danmaku = session.danmaku.copy(textSizeSp = v))
+            binding.danmakuView.invalidate()
+            refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
+        }
     }
 
     private fun showDanmakuSpeedDialog() {
         val options = (1..10).toList()
-        val items = options.map { it.toString() }.toTypedArray()
+        val items = options.map { it.toString() }
         val current = options.indexOf(session.danmaku.speedLevel).let { if (it >= 0) it else 3 }
-        MaterialAlertDialogBuilder(this)
-            .setTitle("弹幕速度(1~10)")
-            .setSingleChoiceItems(items, current) { dialog, which ->
-                val v = options.getOrNull(which) ?: session.danmaku.speedLevel
-                session = session.copy(danmaku = session.danmaku.copy(speedLevel = v))
-                binding.danmakuView.invalidate()
-                refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
-                dialog.dismiss()
-            }
-            .setNegativeButton("取消", null)
-            .show()
+        SingleChoiceDialog.show(
+            context = this,
+            title = "弹幕速度(1~10)",
+            items = items,
+            checkedIndex = current,
+            negativeText = "取消",
+        ) { which, _ ->
+            val v = options.getOrNull(which) ?: session.danmaku.speedLevel
+            session = session.copy(danmaku = session.danmaku.copy(speedLevel = v))
+            binding.danmakuView.invalidate()
+            refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
+        }
     }
 
     private fun showDanmakuAreaDialog() {
@@ -1722,19 +1728,20 @@ class PlayerActivity : AppCompatActivity() {
             0.75f to "3/4",
             1.00f to "不限",
         )
-        val items = options.map { it.second }.toTypedArray()
+        val items = options.map { it.second }
         val current = options.indexOfFirst { kotlin.math.abs(it.first - session.danmaku.area) < 0.01f }.let { if (it >= 0) it else 3 }
-        MaterialAlertDialogBuilder(this)
-            .setTitle("弹幕区域")
-            .setSingleChoiceItems(items, current) { dialog, which ->
-                val v = options.getOrNull(which)?.first ?: session.danmaku.area
-                session = session.copy(danmaku = session.danmaku.copy(area = v))
-                binding.danmakuView.invalidate()
-                refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
-                dialog.dismiss()
-            }
-            .setNegativeButton("取消", null)
-            .show()
+        SingleChoiceDialog.show(
+            context = this,
+            title = "弹幕区域",
+            items = items,
+            checkedIndex = current,
+            negativeText = "取消",
+        ) { which, _ ->
+            val v = options.getOrNull(which)?.first ?: session.danmaku.area
+            session = session.copy(danmaku = session.danmaku.copy(area = v))
+            binding.danmakuView.invalidate()
+            refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
+        }
     }
 
     private suspend fun prepareSubtitleConfig(
@@ -1867,31 +1874,32 @@ class PlayerActivity : AppCompatActivity() {
                 else -> subtitleItems.firstOrNull { it.lan.equals(ov, ignoreCase = true) }?.lanDoc ?: subtitleItems.first().lanDoc
             }
         val checked = items.indexOf(currentLabel).coerceAtLeast(0)
-        MaterialAlertDialogBuilder(this)
-            .setTitle("字幕语言（本次播放）")
-            .setSingleChoiceItems(items.toTypedArray(), checked) { dialog, which ->
-                val chosen = items.getOrNull(which).orEmpty()
-                session =
-                    when {
-                        chosen.startsWith("跟随全局") -> session.copy(subtitleLangOverride = null)
-                        chosen.startsWith("自动") -> session.copy(subtitleLangOverride = "auto")
-                        else -> {
-                            val code = subtitleItems.firstOrNull { it.lanDoc == chosen }?.lan ?: subtitleItems.first().lan
-                            session.copy(subtitleLangOverride = code)
-                        }
+        SingleChoiceDialog.show(
+            context = this,
+            title = "字幕语言（本次播放）",
+            items = items,
+            checkedIndex = checked,
+            negativeText = "取消",
+        ) { which, _ ->
+            val chosen = items.getOrNull(which).orEmpty()
+            session =
+                when {
+                    chosen.startsWith("跟随全局") -> session.copy(subtitleLangOverride = null)
+                    chosen.startsWith("自动") -> session.copy(subtitleLangOverride = "auto")
+                    else -> {
+                        val code = subtitleItems.firstOrNull { it.lanDoc == chosen }?.lan ?: subtitleItems.first().lan
+                        session.copy(subtitleLangOverride = code)
                     }
-                dialog.dismiss()
-                lifecycleScope.launch {
-                    subtitleConfig = buildSubtitleConfigFromCurrentSelection(bvid = currentBvid, cid = currentCid)
-                    subtitleAvailable = subtitleConfig != null
-                    applySubtitleEnabled(exo)
-                    refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
-                    updateSubtitleButton()
-                    reloadStream(keepPosition = true)
                 }
+            lifecycleScope.launch {
+                subtitleConfig = buildSubtitleConfigFromCurrentSelection(bvid = currentBvid, cid = currentCid)
+                subtitleAvailable = subtitleConfig != null
+                applySubtitleEnabled(exo)
+                refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
+                updateSubtitleButton()
+                reloadStream(keepPosition = true)
             }
-            .setNegativeButton("取消", null)
-            .show()
+        }
     }
 
     private suspend fun buildSubtitleConfigFromCurrentSelection(bvid: String, cid: Long): MediaItem.SubtitleConfiguration? {
@@ -2154,21 +2162,19 @@ class PlayerActivity : AppCompatActivity() {
         val currentIndex =
             options.indexOfFirst { parseResolutionFromOption(it) == currentQn }
                 .takeIf { it >= 0 } ?: 0
-        MaterialAlertDialogBuilder(this)
-            .setTitle("分辨率")
-            .setSingleChoiceItems(options.toTypedArray(), currentIndex) { dialog, which ->
-                val selected = options.getOrNull(which).orEmpty()
-                val qn = parseResolutionFromOption(selected)
-                session =
-                    session.copy(
-                        targetQn = qn,
-                    )
-                refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
-                dialog.dismiss()
-                reloadStream(keepPosition = true)
-            }
-            .setNegativeButton("取消", null)
-            .show()
+        SingleChoiceDialog.show(
+            context = this,
+            title = "分辨率",
+            items = options,
+            checkedIndex = currentIndex,
+            negativeText = "取消",
+        ) { which, _ ->
+            val selected = options.getOrNull(which).orEmpty()
+            val qn = parseResolutionFromOption(selected)
+            session = session.copy(targetQn = qn)
+            refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
+            reloadStream(keepPosition = true)
+        }
     }
 
     private fun buildResolutionOptions(): List<String> {

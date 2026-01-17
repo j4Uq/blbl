@@ -21,6 +21,16 @@
         <item name="colorOnPrimary">@color/blbl_text</item>
         <item name="materialAlertDialogTitleTextStyle">@style/Widget.Blbl.MaterialAlertDialog.Title.Text</item>
         <item name="materialAlertDialogBodyTextStyle">@style/Widget.Blbl.MaterialAlertDialog.Body.Text</item>
+        <!-- For single-choice dialogs (ListView in AlertDialog): inject via listViewStyle for reliability. -->
+        <item name="android:listViewStyle">@style/Widget.Blbl.Dialog.ListView</item>
+        <item name="android:dropDownListViewStyle">@style/Widget.Blbl.Dialog.ListView</item>
+    </style>
+
+    <style name="Widget.Blbl.Dialog.ListView" parent="Widget.AppCompat.ListView">
+        <item name="android:listSelector">@drawable/blbl_focus_list_selector_round</item>
+        <item name="android:divider">@android:color/transparent</item>
+        <item name="android:dividerHeight">0dp</item>
+        <item name="android:cacheColorHint">@android:color/transparent</item>
     </style>
 
     <style name="Widget.Blbl.MaterialAlertDialog.Title.Text" parent="MaterialAlertDialog.MaterialComponents.Title.Text">

@@ -24,6 +24,7 @@ import blbl.cat3399.core.api.BiliApi
 import blbl.cat3399.core.log.AppLog
 import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.tv.TvMode
+import blbl.cat3399.core.ui.SingleChoiceDialog
 import blbl.cat3399.core.ui.enableDpadTabFocus
 import blbl.cat3399.databinding.FragmentSearchBinding
 import blbl.cat3399.feature.player.PlayerActivity
@@ -923,23 +924,24 @@ class SearchFragment : Fragment(), BackPressHandler {
             return
         }
         val items = Order.entries
-        val labels = items.map { getString(it.labelRes) }.toTypedArray()
+        val labels = items.map { getString(it.labelRes) }
         val checked = items.indexOf(currentOrder).coerceAtLeast(0)
-        com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
-            .setTitle(getString(R.string.search_sort_title))
-            .setSingleChoiceItems(labels, checked) { dialog, which ->
-                val picked = items.getOrNull(which) ?: return@setSingleChoiceItems
-                if (picked != currentOrder) {
-                    currentOrder = picked
-                    _binding?.let { b ->
-                        b.tvSort.text = getString(currentOrder.labelRes)
-                        resetAndLoad()
-                    }
+        SingleChoiceDialog.show(
+            context = requireContext(),
+            title = getString(R.string.search_sort_title),
+            items = labels,
+            checkedIndex = checked,
+            negativeText = getString(android.R.string.cancel),
+        ) { which, _ ->
+            val picked = items.getOrNull(which) ?: return@show
+            if (picked != currentOrder) {
+                currentOrder = picked
+                _binding?.let { b ->
+                    b.tvSort.text = getString(currentOrder.labelRes)
+                    resetAndLoad()
                 }
-                dialog.dismiss()
             }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        }
     }
 
     private fun spanCountForWidth(): Int {

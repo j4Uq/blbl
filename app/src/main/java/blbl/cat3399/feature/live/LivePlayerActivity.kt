@@ -23,6 +23,7 @@ import blbl.cat3399.core.model.Danmaku
 import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.tv.TvMode
 import blbl.cat3399.core.ui.Immersive
+import blbl.cat3399.core.ui.SingleChoiceDialog
 import blbl.cat3399.databinding.ActivityPlayerBinding
 import blbl.cat3399.databinding.DialogLiveChatBinding
 import blbl.cat3399.feature.player.PlayerSettingsAdapter
@@ -636,18 +637,19 @@ class LivePlayerActivity : AppCompatActivity() {
         val options = available.map { q -> "${q.toString().padStart(5, ' ')} ${liveQnLabel(q, play)}" }
         val current = session.targetQn.takeIf { it > 0 } ?: play.currentQn
         val checked = available.indexOf(current).takeIf { it >= 0 } ?: 0
-        MaterialAlertDialogBuilder(this)
-            .setTitle("清晰度")
-            .setSingleChoiceItems(options.toTypedArray(), checked) { dialog, which ->
-                val picked = available.getOrNull(which) ?: return@setSingleChoiceItems
-                session = session.copy(targetQn = picked)
-                session = session.copy(lineOrder = 1) // reset line
-                refreshSettings()
-                dialog.dismiss()
-                lifecycleScope.launch { loadAndPlay(initial = false) }
-            }
-            .setNegativeButton("取消", null)
-            .show()
+        SingleChoiceDialog.show(
+            context = this,
+            title = "清晰度",
+            items = options,
+            checkedIndex = checked,
+            negativeText = "取消",
+        ) { which, _ ->
+            val picked = available.getOrNull(which) ?: return@show
+            session = session.copy(targetQn = picked)
+            session = session.copy(lineOrder = 1) // reset line
+            refreshSettings()
+            lifecycleScope.launch { loadAndPlay(initial = false) }
+        }
     }
 
     private fun showLineDialog() {
@@ -662,17 +664,18 @@ class LivePlayerActivity : AppCompatActivity() {
         }
         val options = lines.map { "线路 ${it.order}" }
         val checked = (session.lineOrder - 1).coerceIn(0, lines.size - 1)
-        MaterialAlertDialogBuilder(this)
-            .setTitle("线路")
-            .setSingleChoiceItems(options.toTypedArray(), checked) { dialog, which ->
-                val picked = lines.getOrNull(which) ?: return@setSingleChoiceItems
-                session = session.copy(lineOrder = picked.order)
-                refreshSettings()
-                dialog.dismiss()
-                lifecycleScope.launch { loadAndPlay(initial = false) }
-            }
-            .setNegativeButton("取消", null)
-            .show()
+        SingleChoiceDialog.show(
+            context = this,
+            title = "线路",
+            items = options,
+            checkedIndex = checked,
+            negativeText = "取消",
+        ) { which, _ ->
+            val picked = lines.getOrNull(which) ?: return@show
+            session = session.copy(lineOrder = picked.order)
+            refreshSettings()
+            lifecycleScope.launch { loadAndPlay(initial = false) }
+        }
     }
 
     private fun showChatDialog() {
