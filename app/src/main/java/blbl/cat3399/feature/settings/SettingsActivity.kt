@@ -31,9 +31,15 @@ import blbl.cat3399.feature.risk.GaiaVgateActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.Cookie
+import java.io.File
+import java.util.ArrayDeque
 import java.util.Locale
 
 class SettingsActivity : AppCompatActivity() {
@@ -42,6 +48,9 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var leftAdapter: SettingsLeftAdapter
     private lateinit var rightAdapter: SettingsEntryAdapter
     private var testUpdateJob: Job? = null
+    private var clearCacheJob: Job? = null
+    private var cacheSizeJob: Job? = null
+    private var cacheSizeBytes: Long? = null
     private var focusListener: android.view.ViewTreeObserver.OnGlobalFocusChangeListener? = null
 
     private var lastFocusedLeftIndex: Int = 0
@@ -198,6 +207,7 @@ class SettingsActivity : AppCompatActivity() {
                 SettingEntry("图片质量", prefs.imageQuality, "影响封面/头像 URL 追加参数"),
                 SettingEntry("User-Agent", prefs.userAgent.take(60), "点击可编辑/重置（影响 CDN/接口风控）"),
                 SettingEntry("风控验证", gaiaVgateStatusText(), "播放被拦截后可在此手动完成人机验证"),
+                SettingEntry("清理缓存", cacheSizeText(), null),
                 SettingEntry("清除登录", if (BiliClient.cookies.hasSessData()) "已登录" else "未登录", "清除 Cookie（SESSDATA 等）"),
             )
 
@@ -255,6 +265,7 @@ class SettingsActivity : AppCompatActivity() {
             else -> emptyList()
         }
         rightAdapter.submit(entries)
+        if (sections.getOrNull(index) == "通用设置") updateCacheSize(force = false)
         pendingRestoreRightTitle = focusTitle
         val token = ++focusRequestToken
         binding.recyclerRight.doOnPreDraw {
@@ -287,6 +298,7 @@ class SettingsActivity : AppCompatActivity() {
 
             "User-Agent" -> showUserAgentDialog(currentSectionIndex, entry.title)
             "风控验证" -> showGaiaVgateDialog(currentSectionIndex, entry.title)
+            "清理缓存" -> showClearCacheDialog(currentSectionIndex, entry.title)
             "清除登录" -> showClearLoginDialog(currentSectionIndex, entry.title)
 
             "以全屏模式运行" -> {
@@ -475,7 +487,7 @@ class SettingsActivity : AppCompatActivity() {
                 val options =
                     listOf(16, 32, 64, 74, 80, 100, 112, 116, 120, 125, 126, 127, 129).map { it to qnText(it) }
                 showChoiceDialog(
-                    title = "默认画质(qn)",
+                    title = "默认画质",
                     items = options.map { it.second },
                     current = qnText(prefs.playerPreferredQn),
                 ) { selected ->
@@ -487,12 +499,13 @@ class SettingsActivity : AppCompatActivity() {
 
             "默认音轨" -> {
                 val options = listOf(30251, 30250, 30280, 30232, 30216)
+                val optionLabels = options.map { audioText(it) }
                 showChoiceDialog(
                     title = "默认音轨",
-                    items = options.map { audioText(it) },
+                    items = optionLabels,
                     current = audioText(prefs.playerPreferredAudioId),
                 ) { selected ->
-                    val id = selected.substringBefore(" ").toIntOrNull()
+                    val id = options.getOrNull(optionLabels.indexOfFirst { it == selected }.takeIf { it >= 0 } ?: -1)
                     if (id != null) prefs.playerPreferredAudioId = id
                     refreshSection(entry.title)
                 }
@@ -935,13 +948,118 @@ class SettingsActivity : AppCompatActivity() {
             .show()
     }
 
+    private fun showClearCacheDialog(sectionIndex: Int, focusTitle: String) {
+        if (clearCacheJob?.isActive == true) {
+            Toast.makeText(this, "清理中…", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (testUpdateJob?.isActive == true) {
+            Toast.makeText(this, "下载中，稍后再试", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("清理缓存")
+            .setMessage("确定清理缓存？")
+            .setPositiveButton("清理") { _, _ -> startClearCache(sectionIndex, focusTitle) }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun startClearCache(sectionIndex: Int, focusTitle: String) {
+        cacheSizeJob?.cancel()
+        val view = layoutInflater.inflate(blbl.cat3399.R.layout.dialog_test_update_progress, null, false)
+        val tvStatus = view.findViewById<TextView>(blbl.cat3399.R.id.tv_status)
+        val progress = view.findViewById<LinearProgressIndicator>(blbl.cat3399.R.id.progress)
+        progress.isIndeterminate = true
+        progress.max = 100
+        tvStatus.text = "清理中…"
+
+        val dialog =
+            MaterialAlertDialogBuilder(this)
+                .setTitle("清理中")
+                .setView(view)
+                .setNegativeButton("取消") { _, _ -> clearCacheJob?.cancel() }
+                .setCancelable(false)
+                .show()
+
+        clearCacheJob =
+            lifecycleScope.launch {
+                try {
+                    withContext(Dispatchers.IO) {
+                        val dirs = listOfNotNull(cacheDir, externalCacheDir)
+                        for (dir in dirs) {
+                            for (child in (dir.listFiles() ?: emptyArray())) {
+                                currentCoroutineContext().ensureActive()
+                                runCatching { child.deleteRecursively() }
+                            }
+                        }
+                    }
+
+                    dialog.dismiss()
+                    Toast.makeText(this@SettingsActivity, "已清理缓存", Toast.LENGTH_SHORT).show()
+                    cacheSizeBytes = 0L
+                    showSection(sectionIndex, focusTitle = focusTitle)
+                    updateCacheSize(force = true)
+                } catch (_: CancellationException) {
+                    dialog.dismiss()
+                    Toast.makeText(this@SettingsActivity, "已取消", Toast.LENGTH_SHORT).show()
+                } catch (t: Throwable) {
+                    AppLog.w("Settings", "clear cache failed: ${t.message}", t)
+                    dialog.dismiss()
+                    Toast.makeText(this@SettingsActivity, "清理失败", Toast.LENGTH_LONG).show()
+                }
+            }
+    }
+
+    private fun cacheSizeText(): String {
+        val size = cacheSizeBytes ?: return "-"
+        return formatBytes(size)
+    }
+
+    private fun updateCacheSize(force: Boolean) {
+        if (!force && cacheSizeBytes != null) return
+        if (cacheSizeJob?.isActive == true) return
+        cacheSizeJob =
+            lifecycleScope.launch {
+                val size =
+                    withContext(Dispatchers.IO) {
+                        val dirs = listOfNotNull(cacheDir, externalCacheDir)
+                        dirs.sumOf { dirChildrenSizeBytes(it) }.coerceAtLeast(0L)
+                    }
+                val old = cacheSizeBytes
+                cacheSizeBytes = size
+                if (sections.getOrNull(currentSectionIndex) == "通用设置" && old != size) {
+                    showSection(currentSectionIndex, keepScroll = true)
+                }
+            }
+    }
+
+    private fun dirChildrenSizeBytes(dir: File): Long {
+        val children = dir.listFiles() ?: return 0L
+        var total = 0L
+        val stack = ArrayDeque<File>(children.size)
+        for (child in children) stack.add(child)
+        while (stack.isNotEmpty()) {
+            val file = stack.removeLast()
+            if (!file.exists()) continue
+            if (file.isFile) {
+                total += file.length().coerceAtLeast(0L)
+            } else {
+                val nested = file.listFiles() ?: continue
+                for (n in nested) stack.add(n)
+            }
+        }
+        return total.coerceAtLeast(0L)
+    }
+
     private fun audioText(id: Int): String = when (id) {
-        30251 -> "30251 Hi-Res 无损"
-        30250 -> "30250 杜比全景声"
-        30280 -> "30280 192K"
-        30232 -> "30232 132K"
-        30216 -> "30216 64K"
-        else -> "$id"
+        30251 -> "Hi-Res 无损"
+        30250 -> "杜比全景声"
+        30280 -> "192K"
+        30232 -> "132K"
+        30216 -> "64K"
+        else -> id.toString()
     }
 
     private fun subtitleLangText(code: String): String = when (code) {
@@ -1026,20 +1144,20 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun qnText(qn: Int): String = when (qn) {
-        16 -> "360P 流畅(16)"
-        32 -> "480P 清晰(32)"
-        64 -> "720P 高清(64)"
-        74 -> "720P60 高帧率(74)"
-        80 -> "1080P 高清(80)"
-        112 -> "1080P+ 高码率(112)"
-        116 -> "1080P60 高帧率(116)"
-        120 -> "4K 超清(120)"
-        127 -> "8K 超高清(127)"
-        125 -> "HDR 真彩色(125)"
-        126 -> "杜比视界(126)"
-        129 -> "HDR Vivid(129)"
-        6 -> "240P 极速(6)"
-        100 -> "智能修复(100)"
-        else -> "qn $qn"
+        16 -> "360P 流畅"
+        32 -> "480P 清晰"
+        64 -> "720P 高清"
+        74 -> "720P60 高帧率"
+        80 -> "1080P 高清"
+        112 -> "1080P+ 高码率"
+        116 -> "1080P60 高帧率"
+        120 -> "4K 超清"
+        127 -> "8K 超高清"
+        125 -> "HDR 真彩色"
+        126 -> "杜比视界"
+        129 -> "HDR Vivid"
+        6 -> "240P 极速"
+        100 -> "智能修复"
+        else -> qn.toString()
     }
 }
