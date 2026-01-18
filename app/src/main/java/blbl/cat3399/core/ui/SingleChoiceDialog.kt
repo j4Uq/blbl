@@ -20,14 +20,21 @@ object SingleChoiceDialog {
         items: List<String>,
         checkedIndex: Int,
         negativeText: String = "取消",
+        neutralText: String? = null,
+        onNeutral: (() -> Unit)? = null,
+        onNegative: (() -> Unit)? = null,
         onPicked: (index: Int, label: String) -> Unit,
     ) {
         if (items.isEmpty()) {
-            MaterialAlertDialogBuilder(context)
+            val builder =
+                MaterialAlertDialogBuilder(context)
                 .setTitle(title)
                 .setMessage("暂无可选项")
-                .setNegativeButton(negativeText, null)
-                .show()
+            if (neutralText != null) {
+                builder.setNeutralButton(neutralText) { _, _ -> onNeutral?.invoke() }
+            }
+            builder.setNegativeButton(negativeText) { _, _ -> onNegative?.invoke() }
+            builder.show()
             return
         }
 
@@ -59,7 +66,12 @@ object SingleChoiceDialog {
             MaterialAlertDialogBuilder(context)
                 .setTitle(title)
                 .setView(view)
-                .setNegativeButton(negativeText, null)
+                .apply {
+                    if (neutralText != null) {
+                        setNeutralButton(neutralText) { _, _ -> onNeutral?.invoke() }
+                    }
+                }
+                .setNegativeButton(negativeText) { _, _ -> onNegative?.invoke() }
                 .create()
 
         adapter.onDismiss = { dialog.dismiss() }

@@ -111,6 +111,7 @@ class PlayerActivity : AppCompatActivity() {
     private var subtitleConfig: MediaItem.SubtitleConfiguration? = null
     private var subtitleItems: List<SubtitleItem> = emptyList()
     private var lastAvailableQns: List<Int> = emptyList()
+    private var lastAvailableAudioIds: List<Int> = emptyList()
     private var danmakuSegmentSizeMs: Int = DANMAKU_DEFAULT_SEGMENT_MS
     private var danmakuSegmentTotal: Int = 0
     private var danmakuShield: DanmakuShield? = null
@@ -305,6 +306,7 @@ class PlayerActivity : AppCompatActivity() {
         val settingsAdapter = PlayerSettingsAdapter { item ->
             when (item.title) {
                 "分辨率" -> showResolutionDialog()
+                "音轨" -> showAudioDialog()
                 "视频编码" -> showCodecDialog()
                 "播放速度" -> showSpeedDialog()
                 "播放模式" -> showPlaybackModeDialog()
@@ -525,6 +527,9 @@ class PlayerActivity : AppCompatActivity() {
     private fun resetPlaybackStateForNewMedia(exo: ExoPlayer) {
         traceFirstFrameLogged = false
         lastAvailableQns = emptyList()
+        lastAvailableAudioIds = emptyList()
+        session = session.copy(actualQn = 0)
+        session = session.copy(actualAudioId = 0)
         subtitleAvailable = false
         subtitleConfig = null
         subtitleItems = emptyList()
@@ -653,6 +658,7 @@ class PlayerActivity : AppCompatActivity() {
                     trace?.log("playurl:awaitDone")
                     showRiskControlBypassHintIfNeeded(playJson)
                     lastAvailableQns = parseDashVideoQnList(playJson)
+                    lastAvailableAudioIds = parseDashAudioIdList(playJson, constraints = playbackConstraints)
                     trace?.log("subtitle:await")
                     subtitleConfig = subJob.await()
                     trace?.log("subtitle:awaitDone", "ok=${subtitleConfig != null}")
@@ -671,10 +677,13 @@ class PlayerActivity : AppCompatActivity() {
                             )
                             exo.setMediaSource(buildMerged(okHttpFactory, playable.videoUrl, playable.audioUrl, subtitleConfig))
                             applyResolutionFallbackIfNeeded(requestedQn = session.targetQn, actualQn = playable.qn)
+                            applyAudioFallbackIfNeeded(requestedAudioId = session.targetAudioId, actualAudioId = playable.audioId)
                         }
 
                         is Playable.Progressive -> {
                             lastPickedDash = null
+                            session = session.copy(actualAudioId = 0)
+                            (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
                             AppLog.i("Player", "picked Progressive url=${playable.url.take(60)}")
                             exo.setMediaSource(buildProgressive(okHttpFactory, playable.url, subtitleConfig))
                         }
@@ -1493,6 +1502,7 @@ class PlayerActivity : AppCompatActivity() {
         val exo = player ?: return
         val duration = exo.duration.takeIf { it > 0 } ?: 0L
         val pos = exo.currentPosition.coerceAtLeast(0L)
+        val bufPos = exo.bufferedPosition.coerceAtLeast(0L)
 
         if (!scrubbing) {
             binding.tvTime.text = "${formatHms(pos)} / ${formatHms(duration)}"
@@ -1500,9 +1510,19 @@ class PlayerActivity : AppCompatActivity() {
 
         val enabled = duration > 0
         binding.seekProgress.isEnabled = enabled
-        if (enabled && !scrubbing) {
-            val p = ((pos.toDouble() / duration.toDouble()) * SEEK_MAX).toInt().coerceIn(0, SEEK_MAX)
-            binding.seekProgress.progress = p
+        if (enabled) {
+            val bufferedProgress =
+                ((bufPos.toDouble() / duration.toDouble()) * SEEK_MAX)
+                    .toInt()
+                    .coerceIn(0, SEEK_MAX)
+            binding.seekProgress.secondaryProgress = bufferedProgress
+
+            if (!scrubbing) {
+                val p = ((pos.toDouble() / duration.toDouble()) * SEEK_MAX).toInt().coerceIn(0, SEEK_MAX)
+                binding.seekProgress.progress = p
+            }
+        } else {
+            binding.seekProgress.secondaryProgress = 0
         }
         requestDanmakuSegmentsForPosition(pos, immediate = false)
     }
@@ -1785,6 +1805,7 @@ class PlayerActivity : AppCompatActivity() {
         adapter.submit(
             listOf(
                 PlayerSettingsAdapter.SettingItem("分辨率", resolutionSubtitle()),
+                PlayerSettingsAdapter.SettingItem("音轨", audioSubtitle()),
                 PlayerSettingsAdapter.SettingItem("视频编码", session.preferCodec),
                 PlayerSettingsAdapter.SettingItem("播放速度", String.format(Locale.US, "%.2fx", session.playbackSpeed)),
                 PlayerSettingsAdapter.SettingItem("播放模式", playbackModeSubtitle()),
@@ -1955,8 +1976,9 @@ class PlayerActivity : AppCompatActivity() {
                     }
                 }
 
+                val desiredAudioId = session.targetAudioId.takeIf { it > 0 } ?: session.preferAudioId
                 val audioPool =
-                    when (session.preferAudioId) {
+                    when (desiredAudioId) {
                         30250 -> allAudioCandidates.filter { it.kind == DashAudioKind.DOLBY }.ifEmpty { allAudioCandidates }
                         30251 -> allAudioCandidates.filter { it.kind == DashAudioKind.FLAC }.ifEmpty { allAudioCandidates }
                         else -> allAudioCandidates.filter { it.kind == DashAudioKind.NORMAL }.ifEmpty { allAudioCandidates }
@@ -1964,7 +1986,7 @@ class PlayerActivity : AppCompatActivity() {
 
                 val audioPicked =
                     audioPool.maxWithOrNull(
-                        compareBy<AudioCandidate> { it.bandwidth }.thenBy { if (it.id == session.preferAudioId) 1 else 0 },
+                        compareBy<AudioCandidate> { it.bandwidth }.thenBy { if (it.id == desiredAudioId) 1 else 0 },
                     )
                 if (audioPicked == null) {
                     AppLog.w("Player", "no DASH audio track picked; fallback to durl if possible")
@@ -2111,15 +2133,19 @@ class PlayerActivity : AppCompatActivity() {
                     )
                 showRiskControlBypassHintIfNeeded(playJson)
                 lastAvailableQns = parseDashVideoQnList(playJson)
+                lastAvailableAudioIds = parseDashAudioIdList(playJson, constraints = playbackConstraints)
                 val okHttpFactory = OkHttpDataSource.Factory(BiliClient.cdnOkHttp)
                 when (playable) {
                     is Playable.Dash -> {
                         lastPickedDash = playable
                         exo.setMediaSource(buildMerged(okHttpFactory, playable.videoUrl, playable.audioUrl, subtitleConfig))
                         applyResolutionFallbackIfNeeded(requestedQn = session.targetQn, actualQn = playable.qn)
+                        applyAudioFallbackIfNeeded(requestedAudioId = session.targetAudioId, actualAudioId = playable.audioId)
                     }
                     is Playable.Progressive -> {
                         lastPickedDash = null
+                        session = session.copy(actualAudioId = 0)
+                        (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
                         exo.setMediaSource(buildProgressive(okHttpFactory, playable.url, subtitleConfig))
                     }
                 }
@@ -2748,8 +2774,11 @@ class PlayerActivity : AppCompatActivity() {
         val playbackSpeed: Float,
         val preferCodec: String,
         val preferAudioId: Int,
+        val targetAudioId: Int = 0,
+        val actualAudioId: Int = 0,
         val preferredQn: Int,
         val targetQn: Int,
+        val actualQn: Int = 0,
         val playbackModeOverride: String?,
         val subtitleEnabled: Boolean,
         val subtitleLangOverride: String?,
@@ -2758,53 +2787,99 @@ class PlayerActivity : AppCompatActivity() {
     )
 
     private fun resolutionSubtitle(): String {
-        val forced = session.targetQn
-        return if (forced > 0) {
-            qnLabel(forced)
-        } else {
-            "自动(${qnLabel(session.preferredQn)})"
-        }
+        val qn =
+            session.actualQn.takeIf { it > 0 }
+                ?: session.targetQn.takeIf { it > 0 }
+                ?: session.preferredQn
+        return qnLabel(qn)
+    }
+
+    private fun audioSubtitle(): String {
+        val id =
+            session.actualAudioId.takeIf { it > 0 }
+                ?: session.targetAudioId.takeIf { it > 0 }
+                ?: session.preferAudioId
+        return audioLabel(id)
     }
 
     private fun showResolutionDialog() {
-        val options = buildResolutionOptions()
-        val currentQn = session.targetQn
-        val currentIndex =
-            options.indexOfFirst { parseResolutionFromOption(it) == currentQn }
-                .takeIf { it >= 0 } ?: 0
+        // Follow docs: qn list for resolution/framerate.
+        // Keep the full list so user can force-pick even if the server later falls back.
+        val docQns = listOf(16, 32, 64, 74, 80, 100, 112, 116, 120, 125, 126, 127, 129)
+        val available = lastAvailableQns.toSet()
+        val options =
+            docQns.map { qn ->
+                val label = qnLabel(qn)
+                if (available.contains(qn)) "${label}（可用）" else label
+            }
+
+        val currentQn =
+            session.actualQn.takeIf { it > 0 }
+                ?: session.targetQn.takeIf { it > 0 }
+                ?: session.preferredQn
+        val currentIndex = docQns.indexOfFirst { it == currentQn }.takeIf { it >= 0 } ?: 0
         SingleChoiceDialog.show(
             context = this,
             title = "分辨率",
             items = options,
             checkedIndex = currentIndex,
+            neutralText = "自动",
+            onNeutral = {
+                session = session.copy(targetQn = 0)
+                refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
+                reloadStream(keepPosition = true)
+            },
             negativeText = "取消",
         ) { which, _ ->
-            val selected = options.getOrNull(which).orEmpty()
-            val qn = parseResolutionFromOption(selected)
+            val qn = docQns.getOrNull(which) ?: return@show
             session = session.copy(targetQn = qn)
             refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
             reloadStream(keepPosition = true)
         }
     }
 
-    private fun buildResolutionOptions(): List<String> {
-        // Follow docs: qn list for resolution/framerate.
-        val docQns = listOf(16, 32, 64, 74, 80, 100, 112, 116, 120, 125, 126, 127, 129)
-        val available = lastAvailableQns.toSet()
-        return buildList {
-            add("自动(${qnLabel(session.preferredQn)})")
-            for (qn in docQns) {
-                val label = qnLabel(qn)
-                val prefix = qn.toString().padStart(3, ' ') + " "
-                add(if (available.contains(qn)) "${prefix}${label}（可用）" else "${prefix}${label}")
+    private fun showAudioDialog() {
+        val docIds = listOf(30251, 30250, 30280, 30232, 30216)
+        val available = lastAvailableAudioIds.toSet()
+        val options =
+            docIds.map { id ->
+                val label = audioLabel(id)
+                if (available.contains(id)) "${label}（可用）" else label
             }
+
+        val currentId =
+            session.actualAudioId.takeIf { it > 0 }
+                ?: session.targetAudioId.takeIf { it > 0 }
+                ?: session.preferAudioId
+        val currentIndex = docIds.indexOfFirst { it == currentId }.takeIf { it >= 0 } ?: 0
+
+        SingleChoiceDialog.show(
+            context = this,
+            title = "音轨",
+            items = options,
+            checkedIndex = currentIndex,
+            neutralText = "默认",
+            onNeutral = {
+                session = session.copy(targetAudioId = 0)
+                refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
+                reloadStream(keepPosition = true)
+            },
+            negativeText = "取消",
+        ) { which, _ ->
+            val id = docIds.getOrNull(which) ?: return@show
+            session = session.copy(targetAudioId = id)
+            refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
+            reloadStream(keepPosition = true)
         }
     }
 
-    private fun parseResolutionFromOption(option: String): Int {
-        if (option.startsWith("自动")) return 0
-        val raw = option.trimStart().takeWhile { it.isDigit() }
-        return raw.toIntOrNull() ?: 0
+    private fun audioLabel(id: Int): String = when (id) {
+        30251 -> "Hi-Res 无损"
+        30250 -> "杜比全景声"
+        30280 -> "192K"
+        30232 -> "132K"
+        30216 -> "64K"
+        else -> id.toString()
     }
 
     private fun qnLabel(qn: Int): String = when (qn) {
@@ -2836,11 +2911,42 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun applyResolutionFallbackIfNeeded(requestedQn: Int, actualQn: Int) {
-        if (requestedQn <= 0) return
-        if (actualQn <= 0 || requestedQn == actualQn) return
-        val fallbackQn = lastAvailableQns.maxByOrNull { qnRank(it) } ?: actualQn
-        session = session.copy(targetQn = fallbackQn)
-        refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
+        var changed = false
+        if (actualQn > 0 && session.actualQn != actualQn) {
+            session = session.copy(actualQn = actualQn)
+            changed = true
+        }
+
+        if (requestedQn > 0 && actualQn > 0 && requestedQn != actualQn) {
+            val fallbackQn = lastAvailableQns.maxByOrNull { qnRank(it) } ?: actualQn
+            if (session.targetQn != fallbackQn) {
+                session = session.copy(targetQn = fallbackQn)
+                changed = true
+            }
+        }
+
+        if (changed) {
+            refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
+        }
+    }
+
+    private fun applyAudioFallbackIfNeeded(requestedAudioId: Int, actualAudioId: Int) {
+        var changed = false
+        if (actualAudioId > 0 && session.actualAudioId != actualAudioId) {
+            session = session.copy(actualAudioId = actualAudioId)
+            changed = true
+        }
+
+        if (requestedAudioId > 0 && actualAudioId > 0 && requestedAudioId != actualAudioId) {
+            if (session.targetAudioId != actualAudioId) {
+                session = session.copy(targetAudioId = actualAudioId)
+                changed = true
+            }
+        }
+
+        if (changed) {
+            refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
+        }
     }
 
     private fun parseDashVideoQnList(playJson: JSONObject): List<Int> {
@@ -2859,6 +2965,43 @@ class PlayerActivity : AppCompatActivity() {
             if (qn > 0) list.add(qn)
         }
         return list.distinct().sortedBy { qnRank(it) }
+    }
+
+    private fun parseDashAudioIdList(playJson: JSONObject, constraints: PlaybackConstraints): List<Int> {
+        val data = playJson.optJSONObject("data") ?: playJson.optJSONObject("result") ?: return emptyList()
+        val dash = data.optJSONObject("dash") ?: return emptyList()
+        val out = ArrayList<Int>(8)
+
+        fun baseUrl(obj: JSONObject): String =
+            obj.optString("baseUrl", obj.optString("base_url", obj.optString("url", "")))
+
+        val audios = dash.optJSONArray("audio") ?: JSONArray()
+        for (i in 0 until audios.length()) {
+            val a = audios.optJSONObject(i) ?: continue
+            if (baseUrl(a).isBlank()) continue
+            val id = a.optInt("id", 0).takeIf { it > 0 } ?: continue
+            out.add(id)
+        }
+
+        if (constraints.allowDolbyAudio) {
+            val dolbyAudios = dash.optJSONObject("dolby")?.optJSONArray("audio") ?: JSONArray()
+            for (i in 0 until dolbyAudios.length()) {
+                val a = dolbyAudios.optJSONObject(i) ?: continue
+                if (baseUrl(a).isBlank()) continue
+                val id = a.optInt("id", 0).takeIf { it > 0 } ?: continue
+                out.add(id)
+            }
+        }
+
+        if (constraints.allowFlacAudio) {
+            val flacAudio = dash.optJSONObject("flac")?.optJSONObject("audio")
+            if (flacAudio != null && baseUrl(flacAudio).isNotBlank()) {
+                val id = flacAudio.optInt("id", 0).takeIf { it > 0 } ?: 0
+                if (id > 0) out.add(id)
+            }
+        }
+
+        return out.distinct()
     }
 
     private fun qnRank(qn: Int): Int {

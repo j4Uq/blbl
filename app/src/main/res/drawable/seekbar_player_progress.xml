@@ -7,6 +7,15 @@
             <solid android:color="#55FFFFFF" />
         </shape>
     </item>
+    <item android:id="@android:id/secondaryProgress">
+        <clip>
+            <shape android:shape="rectangle">
+                <size android:height="8dp" />
+                <corners android:radius="4dp" />
+                <solid android:color="#70FFFFFF" />
+            </shape>
+        </clip>
+    </item>
     <item android:id="@android:id/progress">
         <clip>
             <shape android:shape="rectangle">

@@ -4,9 +4,9 @@
     <dimen name="sidebar_width_normal">44dp</dimen>
     <dimen name="sidebar_width_small">40dp</dimen>
     <dimen name="sidebar_width_large">52dp</dimen>
-    <dimen name="sidebar_width_tv">90dp</dimen>
-    <dimen name="sidebar_width_tv_small">82dp</dimen>
-    <dimen name="sidebar_width_tv_large">116dp</dimen>
+    <dimen name="sidebar_width_tv">77dp</dimen>
+    <dimen name="sidebar_width_tv_small">70dp</dimen>
+    <dimen name="sidebar_width_tv_large">99dp</dimen>
     <dimen name="sidebar_user_size">32dp</dimen>
     <dimen name="sidebar_user_margin_top">8dp</dimen>
     <dimen name="sidebar_login_size">40dp</dimen>
