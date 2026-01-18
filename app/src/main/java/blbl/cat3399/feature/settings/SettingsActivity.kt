@@ -1,5 +1,7 @@
 package blbl.cat3399.feature.settings
 
+import android.app.ActivityManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -242,11 +244,15 @@ class SettingsActivity : AppCompatActivity() {
                 SettingEntry("更新测试版本", "点击更新", "从内置直链下载 APK 并安装（限速）"),
             )
 
-            else -> listOf(
+            "设备信息" -> listOf(
                 SettingEntry("CPU", Build.SUPPORTED_ABIS.firstOrNull().orEmpty(), null),
                 SettingEntry("设备", "${Build.MANUFACTURER} ${Build.MODEL}", null),
                 SettingEntry("系统", "Android ${Build.VERSION.RELEASE} API${Build.VERSION.SDK_INT}", null),
+                SettingEntry("屏幕", screenText(), null),
+                SettingEntry("RAM", ramText(), null),
             )
+
+            else -> emptyList()
         }
         rightAdapter.submit(entries)
         pendingRestoreRightTitle = focusTitle
@@ -974,6 +980,42 @@ class SettingsActivity : AppCompatActivity() {
     private fun cdnText(code: String): String = when (code) {
         blbl.cat3399.core.prefs.AppPrefs.PLAYER_CDN_MCDN -> "mcdn"
         else -> "bilivideo"
+    }
+
+    private fun screenText(): String {
+        val dm = resources.displayMetrics
+        val width = dm.widthPixels
+        val height = dm.heightPixels
+        val scale = dm.density
+        val refreshHz =
+            runCatching {
+                @Suppress("DEPRECATION")
+                windowManager.defaultDisplay.refreshRate
+            }.getOrNull() ?: 0f
+
+        val hzText = if (refreshHz > 0f) String.format(Locale.US, "%.0fHz", refreshHz) else "-"
+        val scaleText = String.format(Locale.US, "x%.2f", scale)
+        return "${width}×${height} ${hzText} ${scaleText}"
+    }
+
+    private fun ramText(): String {
+        val am = getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return "-"
+        val mi = ActivityManager.MemoryInfo()
+        am.getMemoryInfo(mi)
+        val total = mi.totalMem.takeIf { it > 0 } ?: return "-"
+        val avail = mi.availMem.coerceAtLeast(0)
+        return "总${formatBytes(total)} 可用${formatBytes(avail)}"
+    }
+
+    private fun formatBytes(bytes: Long): String {
+        val b = bytes.coerceAtLeast(0)
+        if (b < 1024) return "${b}B"
+        val kb = b / 1024.0
+        if (kb < 1024) return String.format(Locale.US, "%.1fKB", kb)
+        val mb = kb / 1024.0
+        if (mb < 1024) return String.format(Locale.US, "%.1fMB", mb)
+        val gb = mb / 1024.0
+        return String.format(Locale.US, "%.2fGB", gb)
     }
 
     private fun playbackModeText(code: String): String = when (code) {
