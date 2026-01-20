@@ -56,6 +56,13 @@ class FollowingAdapter(
         notifyDataSetChanged()
     }
 
+    fun append(list: List<FollowingUi>) {
+        if (list.isEmpty()) return
+        val start = items.size
+        items.addAll(list)
+        notifyItemRangeInserted(start, list.size)
+    }
+
     override fun getItemId(position: Int): Long = items[position].mid
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Vh {

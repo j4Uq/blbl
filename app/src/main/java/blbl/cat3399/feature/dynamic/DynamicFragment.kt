@@ -46,6 +46,15 @@ class DynamicFragment : Fragment() {
     private var pendingFocusNextCardAfterLoadMoreFromDpad: Boolean = false
     private var pendingFocusNextCardAfterLoadMoreFromPos: Int = RecyclerView.NO_POSITION
 
+    private var userMid: Long = 0L
+    private var followPage: Int = 1
+    private var followIsLoadingMore: Boolean = false
+    private var followEndReached: Boolean = false
+    private var followRequestToken: Int = 0
+    private val loadedFollowMids = HashSet<Long>()
+    private var pendingFocusNextFollowingAfterLoadMoreFromDpad: Boolean = false
+    private var pendingFocusNextFollowingAfterLoadMoreFromPos: Int = RecyclerView.NO_POSITION
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         if (!loggedIn) {
             _bindingLogin = FragmentDynamicLoginBinding.inflate(inflater, container, false)
@@ -69,6 +78,69 @@ class DynamicFragment : Fragment() {
         binding.recyclerFollowing.layoutManager = LinearLayoutManager(requireContext())
         binding.recyclerFollowing.adapter = followAdapter
         followAdapter.setTvMode(TvMode.isEnabled(requireContext()))
+        binding.recyclerFollowing.clearOnScrollListeners()
+        binding.recyclerFollowing.addOnScrollListener(
+            object : RecyclerView.OnScrollListener() {
+                override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                    if (dy <= 0) return
+                    if (followIsLoadingMore || followEndReached) return
+                    val lm = recyclerView.layoutManager as? LinearLayoutManager ?: return
+                    val lastVisible = lm.findLastVisibleItemPosition()
+                    val totalCount = followAdapter.itemCount
+                    if (totalCount <= 0) return
+                    if (totalCount - lastVisible - 1 <= 6) loadMoreFollowings()
+                }
+            },
+        )
+        binding.recyclerFollowing.addOnChildAttachStateChangeListener(
+            object : RecyclerView.OnChildAttachStateChangeListener {
+                override fun onChildViewAttachedToWindow(view: View) {
+                    view.setOnKeyListener { v, keyCode, event ->
+                        if (event.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+                        when (keyCode) {
+                            KeyEvent.KEYCODE_DPAD_DOWN -> {
+                                val recycler = binding.recyclerFollowing
+                                val itemView = recycler.findContainingItemView(v) ?: return@setOnKeyListener false
+                                val next = FocusFinder.getInstance().findNextFocus(recycler, itemView, View.FOCUS_DOWN)
+                                if (next == null || !isDescendantOf(next, recycler)) {
+                                    if (recycler.canScrollVertically(1)) {
+                                        val dy = (itemView.height * 0.8f).toInt().coerceAtLeast(1)
+                                        recycler.scrollBy(0, dy)
+                                        recycler.post {
+                                            if (_binding == null) return@post
+                                            tryFocusNextDownFromCurrentFollowing()
+                                        }
+                                        return@setOnKeyListener true
+                                    }
+                                    if (!followEndReached) {
+                                        val holder = recycler.findContainingViewHolder(v)
+                                        val pos =
+                                            holder?.bindingAdapterPosition
+                                                ?.takeIf { it != RecyclerView.NO_POSITION }
+                                                ?: RecyclerView.NO_POSITION
+                                        if (pos != RecyclerView.NO_POSITION) {
+                                            pendingFocusNextFollowingAfterLoadMoreFromDpad = true
+                                            pendingFocusNextFollowingAfterLoadMoreFromPos = pos
+                                        }
+                                        loadMoreFollowings()
+                                        return@setOnKeyListener true
+                                    }
+                                    // Already at end: consume DPAD_DOWN to keep focus from escaping to other panels.
+                                    return@setOnKeyListener true
+                                }
+                                false
+                            }
+
+                            else -> false
+                        }
+                    }
+                }
+
+                override fun onChildViewDetachedFromWindow(view: View) {
+                    view.setOnKeyListener(null)
+                }
+            },
+        )
         applyUiMode()
 
         videoAdapter = VideoCardAdapter { card, pos ->
@@ -186,13 +258,8 @@ class DynamicFragment : Fragment() {
                     return@launch
                 }
 
-                val followings = BiliApi.followings(vmid = mid, pn = 1, ps = 30)
-                followItems = buildList {
-                    add(FollowingAdapter.FollowingUi(FollowingAdapter.MID_ALL, "所有", null, isAll = true))
-                    followings.forEach { f -> add(FollowingAdapter.FollowingUi(f.mid, f.name, f.avatarUrl)) }
-                }
-                if (selectedMid == 0L) selectedMid = FollowingAdapter.MID_ALL
-                followAdapter.submit(followItems, selected = selectedMid)
+                userMid = mid
+                resetAndLoadFollowings()
                 if (resetFeed) resetAndLoadFeed() else loadMoreFeed()
             } catch (t: Throwable) {
                 AppLog.e("Dynamic", "load failed", t)
@@ -200,6 +267,76 @@ class DynamicFragment : Fragment() {
                 Toast.makeText(requireContext(), "加载失败，可查看 Logcat(标签 BLBL)", Toast.LENGTH_SHORT).show()
             } finally {
                 if (!resetFeed) _binding?.swipeRefresh?.isRefreshing = false
+            }
+        }
+    }
+
+    private suspend fun resetAndLoadFollowings() {
+        if (_binding == null) return
+        if (!this::followAdapter.isInitialized) return
+        if (userMid <= 0) return
+
+        loadedFollowMids.clear()
+        followPage = 1
+        followEndReached = false
+        followIsLoadingMore = false
+        val token = ++followRequestToken
+
+        if (selectedMid == 0L) selectedMid = FollowingAdapter.MID_ALL
+        followItems = listOf(FollowingAdapter.FollowingUi(FollowingAdapter.MID_ALL, "所有", null, isAll = true))
+        followAdapter.submit(followItems, selected = selectedMid)
+
+        followIsLoadingMore = true
+        try {
+            val res = BiliApi.followingsPage(vmid = userMid, pn = followPage, ps = 50)
+            if (token != followRequestToken) return
+
+            val filtered = res.items.filter { loadedFollowMids.add(it.mid) }
+            val uiItems = filtered.map { f -> FollowingAdapter.FollowingUi(f.mid, f.name, f.avatarUrl) }
+            if (uiItems.isEmpty()) {
+                followEndReached = true
+                Toast.makeText(requireContext(), "暂无关注", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            followItems = followItems + uiItems
+            followAdapter.submit(followItems, selected = selectedMid)
+            followPage += 1
+            followEndReached = !res.hasMore
+        } catch (t: Throwable) {
+            AppLog.e("Dynamic", "load followings failed page=$followPage", t)
+            Toast.makeText(requireContext(), "关注列表加载失败，可查看 Logcat(标签 BLBL)", Toast.LENGTH_SHORT).show()
+        } finally {
+            if (token == followRequestToken) {
+                followIsLoadingMore = false
+            }
+        }
+    }
+
+    private fun loadMoreFollowings() {
+        if (followIsLoadingMore || followEndReached) return
+        if (userMid <= 0) return
+        val token = followRequestToken
+        val targetPage = followPage.coerceAtLeast(1)
+        followIsLoadingMore = true
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val res = BiliApi.followingsPage(vmid = userMid, pn = targetPage, ps = 50)
+                if (token != followRequestToken) return@launch
+
+                val filtered = res.items.filter { loadedFollowMids.add(it.mid) }
+                val uiItems = filtered.map { f -> FollowingAdapter.FollowingUi(f.mid, f.name, f.avatarUrl) }
+                if (uiItems.isNotEmpty()) {
+                    followItems = followItems + uiItems
+                    followAdapter.append(uiItems)
+                }
+                followPage = targetPage + 1
+                followEndReached = !res.hasMore
+                _binding?.recyclerFollowing?.post { maybeConsumePendingFocusNextFollowingAfterLoadMoreFromDpad() }
+            } catch (t: Throwable) {
+                AppLog.e("Dynamic", "load followings failed page=$targetPage", t)
+            } finally {
+                if (token == followRequestToken) followIsLoadingMore = false
             }
         }
     }
@@ -338,9 +475,74 @@ class DynamicFragment : Fragment() {
         }
     }
 
+    private fun clearPendingFocusNextFollowingAfterLoadMoreFromDpad() {
+        pendingFocusNextFollowingAfterLoadMoreFromDpad = false
+        pendingFocusNextFollowingAfterLoadMoreFromPos = RecyclerView.NO_POSITION
+    }
+
+    private fun maybeConsumePendingFocusNextFollowingAfterLoadMoreFromDpad(): Boolean {
+        if (!pendingFocusNextFollowingAfterLoadMoreFromDpad) return false
+        val binding = _binding
+        if (binding == null || !isResumed || !this::followAdapter.isInitialized) {
+            clearPendingFocusNextFollowingAfterLoadMoreFromDpad()
+            return false
+        }
+
+        val recycler = binding.recyclerFollowing
+        val lm = recycler.layoutManager as? LinearLayoutManager
+        if (lm == null) {
+            clearPendingFocusNextFollowingAfterLoadMoreFromDpad()
+            return false
+        }
+
+        val anchorPos = pendingFocusNextFollowingAfterLoadMoreFromPos
+        if (anchorPos == RecyclerView.NO_POSITION) {
+            clearPendingFocusNextFollowingAfterLoadMoreFromDpad()
+            return false
+        }
+
+        val focused = activity?.currentFocus
+        if (focused != null && !isDescendantOf(focused, recycler)) {
+            clearPendingFocusNextFollowingAfterLoadMoreFromDpad()
+            return false
+        }
+
+        val itemCount = followAdapter.itemCount
+        val candidatePos =
+            when {
+                anchorPos + 1 in 0 until itemCount -> anchorPos + 1
+                anchorPos in 0 until itemCount -> anchorPos
+                else -> null
+            }
+        clearPendingFocusNextFollowingAfterLoadMoreFromDpad()
+        if (candidatePos == null) return false
+
+        recycler.findViewHolderForAdapterPosition(candidatePos)?.itemView?.requestFocus()
+            ?: run {
+                recycler.scrollToPosition(candidatePos)
+                recycler.post { recycler.findViewHolderForAdapterPosition(candidatePos)?.itemView?.requestFocus() }
+            }
+        return true
+    }
+
+    private fun tryFocusNextDownFromCurrentFollowing() {
+        val binding = _binding ?: return
+        if (!isResumed) return
+        val recycler = binding.recyclerFollowing
+        val focused = activity?.currentFocus ?: return
+        if (!isDescendantOf(focused, recycler)) return
+        val itemView = recycler.findContainingItemView(focused) ?: return
+        val next = FocusFinder.getInstance().findNextFocus(recycler, itemView, View.FOCUS_DOWN)
+        if (next != null && isDescendantOf(next, recycler)) {
+            next.requestFocus()
+        }
+    }
+
     override fun onDestroyView() {
         _bindingLogin = null
         clearPendingFocusNextCardAfterLoadMoreFromDpad()
+        clearPendingFocusNextFollowingAfterLoadMoreFromDpad()
+        followRequestToken++
         _binding = null
         super.onDestroyView()
     }
