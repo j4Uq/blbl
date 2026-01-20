@@ -16,7 +16,7 @@ object UiScale {
     fun presetFactor(prefValue: String): Float {
         return when (prefValue) {
             AppPrefs.SIDEBAR_SIZE_SMALL -> 0.90f
-            AppPrefs.SIDEBAR_SIZE_LARGE -> 1.20f
+            AppPrefs.SIDEBAR_SIZE_LARGE -> 1.10f
             else -> 1.00f
         }
     }

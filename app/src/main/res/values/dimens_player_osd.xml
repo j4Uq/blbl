@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Player bottom OSD (normal mode): baseline is Medium; Small/Large are Medium x 0.9 / x 1.1.
+      Keep these values in dp so they scale naturally with density.
+    -->
+
+    <!-- Focus target size (all buttons) -->
+    <dimen name="player_osd_button_target_size_s">35.1dp</dimen>
+    <dimen name="player_osd_button_target_size_m">39dp</dimen>
+    <dimen name="player_osd_button_target_size_l">42.9dp</dimen>
+
+    <!-- Button spacing -->
+    <dimen name="player_osd_gap_s">1.8dp</dimen>
+    <dimen name="player_osd_gap_m">2dp</dimen>
+    <dimen name="player_osd_gap_l">2.2dp</dimen>
+
+    <!-- Icon padding: transport (prev/next/play) -->
+    <dimen name="player_osd_pad_transport_s">3.92dp</dimen>
+    <!-- Medium: shrink transport icons by ~13% (keep focus target size unchanged). -->
+    <dimen name="player_osd_pad_transport_m">4.36dp</dimen>
+    <dimen name="player_osd_pad_transport_l">4.80dp</dimen>
+
+    <!-- Icon padding: normal buttons (subtitle/danmaku/up) -->
+    <dimen name="player_osd_pad_normal_s">4.79dp</dimen>
+    <!-- Medium: shrink subtitle/danmaku icons by ~13% (keep focus target size unchanged). -->
+    <dimen name="player_osd_pad_normal_m">5.32dp</dimen>
+    <dimen name="player_osd_pad_normal_l">5.85dp</dimen>
+
+    <!-- Icon padding: small buttons (like/coin/fav/advanced) -->
+    <dimen name="player_osd_pad_small_s">5.26dp</dimen>
+    <!-- Medium: tuned; keep focus target size unchanged. -->
+    <dimen name="player_osd_pad_small_m">5.84dp</dimen>
+    <dimen name="player_osd_pad_small_l">6.42dp</dimen>
+
+</resources>

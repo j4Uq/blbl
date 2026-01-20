@@ -52,4 +52,53 @@
         <item name="tabPaddingTop">4dp</item>
         <item name="tabPaddingBottom">2dp</item>
     </style>
+
+    <!-- Player OSD sizing overlays: pick by prefs (S/M/L) + UI mode (TV/normal). -->
+    <style name="ThemeOverlay.Blbl.PlayerOsd.Normal.Small" parent="ThemeOverlay.MaterialComponents">
+        <item name="playerOsdButtonTargetSize">@dimen/player_osd_button_target_size_s</item>
+        <item name="playerOsdPadTransport">@dimen/player_osd_pad_transport_s</item>
+        <item name="playerOsdPadNormal">@dimen/player_osd_pad_normal_s</item>
+        <item name="playerOsdPadSmall">@dimen/player_osd_pad_small_s</item>
+        <item name="playerOsdGap">@dimen/player_osd_gap_s</item>
+    </style>
+
+    <style name="ThemeOverlay.Blbl.PlayerOsd.Normal.Medium" parent="ThemeOverlay.MaterialComponents">
+        <item name="playerOsdButtonTargetSize">@dimen/player_osd_button_target_size_m</item>
+        <item name="playerOsdPadTransport">@dimen/player_osd_pad_transport_m</item>
+        <item name="playerOsdPadNormal">@dimen/player_osd_pad_normal_m</item>
+        <item name="playerOsdPadSmall">@dimen/player_osd_pad_small_m</item>
+        <item name="playerOsdGap">@dimen/player_osd_gap_m</item>
+    </style>
+
+    <style name="ThemeOverlay.Blbl.PlayerOsd.Normal.Large" parent="ThemeOverlay.MaterialComponents">
+        <item name="playerOsdButtonTargetSize">@dimen/player_osd_button_target_size_l</item>
+        <item name="playerOsdPadTransport">@dimen/player_osd_pad_transport_l</item>
+        <item name="playerOsdPadNormal">@dimen/player_osd_pad_normal_l</item>
+        <item name="playerOsdPadSmall">@dimen/player_osd_pad_small_l</item>
+        <item name="playerOsdGap">@dimen/player_osd_gap_l</item>
+    </style>
+
+    <style name="ThemeOverlay.Blbl.PlayerOsd.Tv.Small" parent="ThemeOverlay.MaterialComponents">
+        <item name="playerOsdButtonTargetSize">@dimen/player_osd_tv_button_target_size_s</item>
+        <item name="playerOsdPadTransport">@dimen/player_osd_tv_pad_transport_s</item>
+        <item name="playerOsdPadNormal">@dimen/player_osd_tv_pad_normal_s</item>
+        <item name="playerOsdPadSmall">@dimen/player_osd_tv_pad_small_s</item>
+        <item name="playerOsdGap">@dimen/player_osd_tv_gap_s</item>
+    </style>
+
+    <style name="ThemeOverlay.Blbl.PlayerOsd.Tv.Medium" parent="ThemeOverlay.MaterialComponents">
+        <item name="playerOsdButtonTargetSize">@dimen/player_osd_tv_button_target_size_m</item>
+        <item name="playerOsdPadTransport">@dimen/player_osd_tv_pad_transport_m</item>
+        <item name="playerOsdPadNormal">@dimen/player_osd_tv_pad_normal_m</item>
+        <item name="playerOsdPadSmall">@dimen/player_osd_tv_pad_small_m</item>
+        <item name="playerOsdGap">@dimen/player_osd_tv_gap_m</item>
+    </style>
+
+    <style name="ThemeOverlay.Blbl.PlayerOsd.Tv.Large" parent="ThemeOverlay.MaterialComponents">
+        <item name="playerOsdButtonTargetSize">@dimen/player_osd_tv_button_target_size_l</item>
+        <item name="playerOsdPadTransport">@dimen/player_osd_tv_pad_transport_l</item>
+        <item name="playerOsdPadNormal">@dimen/player_osd_tv_pad_normal_l</item>
+        <item name="playerOsdPadSmall">@dimen/player_osd_tv_pad_small_l</item>
+        <item name="playerOsdGap">@dimen/player_osd_tv_gap_l</item>
+    </style>
 </resources>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Player OSD sizing: resolved via ThemeOverlay so UI can be tuned by XML (S/M/L + TV/normal). -->
+    <attr name="playerOsdButtonTargetSize" format="dimension" />
+    <attr name="playerOsdPadTransport" format="dimension" />
+    <attr name="playerOsdPadNormal" format="dimension" />
+    <attr name="playerOsdPadSmall" format="dimension" />
+    <attr name="playerOsdGap" format="dimension" />
+</resources>

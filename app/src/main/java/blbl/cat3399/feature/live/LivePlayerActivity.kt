@@ -28,6 +28,7 @@ import blbl.cat3399.core.ui.SingleChoiceDialog
 import blbl.cat3399.core.ui.UiScale
 import blbl.cat3399.databinding.ActivityPlayerBinding
 import blbl.cat3399.databinding.DialogLiveChatBinding
+import blbl.cat3399.feature.player.PlayerOsdSizing
 import blbl.cat3399.feature.player.PlayerSettingsAdapter
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.Job
@@ -63,6 +64,7 @@ class LivePlayerActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        PlayerOsdSizing.applyTheme(this)
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
         Immersive.apply(this, BiliClient.prefs.fullscreenEnabled)
@@ -152,6 +154,7 @@ class LivePlayerActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        PlayerOsdSizing.applyTheme(this)
         applyUiMode()
     }
 
@@ -248,42 +251,7 @@ class LivePlayerActivity : AppCompatActivity() {
             }
         }
 
-        val controlSize =
-            scaledPx(if (tvMode) blbl.cat3399.R.dimen.player_control_button_size_tv else blbl.cat3399.R.dimen.player_control_button_size).coerceAtLeast(1)
-        val subtitleHeight =
-            scaledPx(
-                if (tvMode) blbl.cat3399.R.dimen.player_control_button_height_subtitle_tv else blbl.cat3399.R.dimen.player_control_button_height_subtitle,
-            ).coerceAtLeast(1)
-        val settingsSize =
-            scaledPx(
-                if (tvMode) blbl.cat3399.R.dimen.player_control_button_size_settings_tv else blbl.cat3399.R.dimen.player_control_button_size_settings,
-            ).coerceAtLeast(1)
-        val controlPad =
-            scaledPx(if (tvMode) blbl.cat3399.R.dimen.player_control_button_padding_tv else blbl.cat3399.R.dimen.player_control_button_padding)
-        listOf(binding.btnSubtitle, binding.btnDanmaku).forEach { btn ->
-            setSize(btn, controlSize, subtitleHeight)
-            btn.setPadding(controlPad, controlPad, controlPad, controlPad)
-        }
-        run {
-            val btn = binding.btnAdvanced
-            setSize(btn, settingsSize, settingsSize)
-            btn.setPadding(controlPad, controlPad, controlPad, controlPad)
-        }
-        if (tvMode) {
-            fun setEndMargin(view: View, marginEndPx: Int) {
-                val lp = view.layoutParams as? MarginLayoutParams ?: return
-                if (lp.marginEnd == marginEndPx) return
-                lp.marginEnd = marginEndPx
-                view.layoutParams = lp
-            }
-
-            val playSize = scaledPx(blbl.cat3399.R.dimen.player_control_button_size_main_play_tv).coerceAtLeast(1)
-            val transportPad = scaledPx(blbl.cat3399.R.dimen.player_control_button_padding_main_tv)
-            val gap = scaledPx(blbl.cat3399.R.dimen.player_control_button_gap_tv)
-            setSize(binding.btnPlayPause, playSize, playSize)
-            binding.btnPlayPause.setPadding(transportPad, transportPad, transportPad, transportPad)
-            setEndMargin(binding.btnPlayPause, gap)
-        }
+        PlayerOsdSizing.applyToViews(this, binding)
 
         binding.tvTime.setTextSize(
             TypedValue.COMPLEX_UNIT_PX,
@@ -724,8 +692,8 @@ class LivePlayerActivity : AppCompatActivity() {
     }
 
     private fun updateDanmakuButton() {
-        val colorRes = if (session.danmaku.enabled) blbl.cat3399.R.color.blbl_blue else blbl.cat3399.R.color.blbl_text_secondary
-        binding.btnDanmaku.imageTintList = ContextCompat.getColorStateList(this, colorRes)
+        binding.btnDanmaku.imageTintList = null
+        binding.btnDanmaku.isSelected = session.danmaku.enabled
     }
 
     private fun updateDebugOverlay() {

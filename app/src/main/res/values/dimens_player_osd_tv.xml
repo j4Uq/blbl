@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Player bottom OSD (TV mode): baseline is Medium; Small/Large are Medium x 0.9 / x 1.1.
+      TV mode is selected explicitly via prefs (not only device qualifiers).
+    -->
+
+    <!-- Focus target size (all buttons) -->
+    <dimen name="player_osd_tv_button_target_size_s">53.1dp</dimen>
+    <dimen name="player_osd_tv_button_target_size_m">59dp</dimen>
+    <dimen name="player_osd_tv_button_target_size_l">64.9dp</dimen>
+
+    <!-- Button spacing -->
+    <dimen name="player_osd_tv_gap_s">2.7dp</dimen>
+    <dimen name="player_osd_tv_gap_m">3dp</dimen>
+    <dimen name="player_osd_tv_gap_l">3.3dp</dimen>
+
+    <!-- Icon padding: transport (prev/next/play) -->
+    <dimen name="player_osd_tv_pad_transport_s">5.59dp</dimen>
+    <dimen name="player_osd_tv_pad_transport_m">6.21dp</dimen>
+    <dimen name="player_osd_tv_pad_transport_l">6.83dp</dimen>
+
+    <!-- Icon padding: normal buttons (subtitle/danmaku/up) -->
+    <dimen name="player_osd_tv_pad_normal_s">6.59dp</dimen>
+    <dimen name="player_osd_tv_pad_normal_m">7.32dp</dimen>
+    <dimen name="player_osd_tv_pad_normal_l">8.05dp</dimen>
+
+    <!-- Icon padding: small buttons (like/coin/fav/advanced) -->
+    <dimen name="player_osd_tv_pad_small_s">7.24dp</dimen>
+    <dimen name="player_osd_tv_pad_small_m">8.04dp</dimen>
+    <dimen name="player_osd_tv_pad_small_l">8.84dp</dimen>
+
+</resources>
