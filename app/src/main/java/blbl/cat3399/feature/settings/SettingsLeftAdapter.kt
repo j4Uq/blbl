@@ -34,7 +34,6 @@ class SettingsLeftAdapter(
     class Vh(private val binding: ItemSettingsLeftBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind(text: String, selected: Boolean, onClick: () -> Unit) {
             binding.tvTitle.text = text
-            binding.root.alpha = if (selected) 1.0f else 0.7f
             binding.root.isSelected = selected
             binding.root.setOnClickListener { onClick() }
         }

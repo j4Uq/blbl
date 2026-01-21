@@ -8,9 +8,10 @@
     android:clickable="true"
     android:focusable="true"
     android:stateListAnimator="@animator/blbl_focus_scale"
-    app:cardBackgroundColor="@color/blbl_surface"
+    app:cardBackgroundColor="@color/blbl_settings_left_card_bg"
     app:cardCornerRadius="12dp"
-    app:strokeColor="@color/blbl_focus_stroke"
+    app:cardElevation="0dp"
+    app:strokeColor="@color/blbl_focus_stroke_focus_only"
     app:strokeWidth="2dp">
 
     <TextView
