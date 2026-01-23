@@ -210,7 +210,7 @@ class MainActivity : AppCompatActivity() {
                             return super.dispatchKeyEvent(event)
                         }
                         if (canEnterSidebarFrom(focused)) {
-                            focusSidebarFirstNav()
+                            focusSidebarSelectedNav()
                             return true
                         }
                     }
@@ -683,6 +683,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun focusSidebarFirstNav(): Boolean = focusSidebarNavAt(0)
+
+    private fun focusSidebarSelectedNav(): Boolean {
+        val pos = navAdapter.selectedAdapterPosition().takeIf { it >= 0 } ?: 0
+        return focusSidebarNavAt(pos)
+    }
 
     private fun focusSidebarNavAt(position: Int): Boolean {
         if (position < 0 || position >= navAdapter.itemCount) return false
