@@ -137,6 +137,7 @@ class PlayerActivity : BaseActivity() {
     private var currentUpAvatar: String? = null
 
     private var playlistToken: String? = null
+    private var playlistSource: String? = null
     private var playlistItems: List<PlayerPlaylistItem> = emptyList()
     private var playlistIndex: Int = -1
     private var playlistUgcSeasonId: Long? = null
@@ -301,6 +302,7 @@ class PlayerActivity : BaseActivity() {
         playlistToken?.let { token ->
             val p = PlayerPlaylistStore.get(token)
             if (p != null && p.items.isNotEmpty()) {
+                playlistSource = p.source
                 playlistItems = p.items
                 val idx = playlistIndex.takeIf { it in playlistItems.indices } ?: p.index
                 playlistIndex = idx.coerceIn(0, playlistItems.lastIndex)
@@ -846,7 +848,17 @@ class PlayerActivity : BaseActivity() {
         return list.all { it.bvid == bvid && (it.cid ?: 0L) > 0L }
     }
 
+    private fun shouldKeepExternalPlaylistFixed(): Boolean {
+        if (playlistToken.isNullOrBlank()) return false
+        val src = playlistSource?.trim().orEmpty()
+        if (src.isBlank()) return false
+        // When launching from "My" pages (favorites / watch later), keep the original list
+        // so switching videos stays within that page instead of being overridden by multi-page or ugc season.
+        return src == "MyToView" || src.startsWith("MyFavFolderDetail:")
+    }
+
     private suspend fun maybeOverridePlaylistWithUgcSeason(viewData: JSONObject, bvid: String) {
+        if (shouldKeepExternalPlaylistFixed()) return
         val ugcSeason = viewData.optJSONObject("ugc_season") ?: return
         val seasonId = ugcSeason.optLong("id").takeIf { it > 0 } ?: return
         val seasonTitle = ugcSeason.optString("title", "").trim().takeIf { it.isNotBlank() }
@@ -855,6 +867,7 @@ class PlayerActivity : BaseActivity() {
             if (items.isEmpty() || index !in items.indices) return
             playlistToken?.let(PlayerPlaylistStore::remove)
             playlistToken = null
+            playlistSource = null
             playlistItems = items
             playlistIndex = index
             playlistUgcSeasonId = seasonId
@@ -887,6 +900,7 @@ class PlayerActivity : BaseActivity() {
     }
 
     private fun maybeOverridePlaylistWithMultiPage(viewData: JSONObject, bvid: String) {
+        if (shouldKeepExternalPlaylistFixed()) return
         if (playlistUgcSeasonId != null) return
         val pages = viewData.optJSONArray("pages") ?: return
         if (pages.length() <= 1) return
@@ -898,6 +912,7 @@ class PlayerActivity : BaseActivity() {
             if (items.isEmpty() || index !in items.indices) return
             playlistToken?.let(PlayerPlaylistStore::remove)
             playlistToken = null
+            playlistSource = null
             playlistItems = items
             playlistIndex = index
             updatePlaylistControls()
