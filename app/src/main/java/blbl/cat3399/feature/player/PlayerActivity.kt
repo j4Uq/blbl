@@ -12,6 +12,7 @@ import android.view.View
 import android.view.ViewGroup.MarginLayoutParams
 import android.widget.SeekBar
 import android.widget.Toast
+import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.C
@@ -99,11 +100,11 @@ class PlayerActivity : BaseActivity() {
     private var autoSkipHintVisible: Boolean = false
     private var reportProgressJob: kotlinx.coroutines.Job? = null
     private var autoHideJob: kotlinx.coroutines.Job? = null
+    private var seekOsdHideJob: kotlinx.coroutines.Job? = null
     private var holdSeekJob: kotlinx.coroutines.Job? = null
     private var seekHintJob: kotlinx.coroutines.Job? = null
     private var keyScrubEndJob: kotlinx.coroutines.Job? = null
     private var scrubbing: Boolean = false
-    private var controlsVisible: Boolean = false
     private var lastInteractionAtMs: Long = 0L
     private var lastBackAtMs: Long = 0L
     private var finishOnBackKeyUp: Boolean = false
@@ -127,6 +128,17 @@ class PlayerActivity : BaseActivity() {
     private var tapSeekActiveDirection: Int = 0
     private var tapSeekActiveUntilMs: Long = 0L
     private var riskControlBypassHintShown: Boolean = false
+    private var seekOsdToken: Long = 0L
+    private var bottomBarFullConstraints: ConstraintSet? = null
+    private var bottomBarSeekConstraints: ConstraintSet? = null
+
+    private enum class OsdMode {
+        Hidden,
+        Full,
+        SeekTransient,
+    }
+
+    private var osdMode: OsdMode = OsdMode.Hidden
 
     private var currentBvid: String = ""
     private var currentCid: Long = -1L
@@ -297,6 +309,7 @@ class PlayerActivity : BaseActivity() {
         Immersive.apply(this, BiliClient.prefs.fullscreenEnabled)
         applyUiMode()
         binding.topBar.setBackgroundResource(R.drawable.bg_player_top_scrim_strong)
+        ensureBottomBarConstraintSets()
 
         // Re-apply after layout changes so content-based auto-scale can take effect.
         binding.playerView.addOnLayoutChangeListener { _, l, t, r, b, ol, ot, or, ob ->
@@ -1683,7 +1696,7 @@ class PlayerActivity : BaseActivity() {
             -> {
                 if (binding.settingsPanel.visibility == View.VISIBLE) return true
                 if (
-                    !controlsVisible &&
+                    osdMode == OsdMode.Hidden &&
                     (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_SETTINGS)
                 ) {
                     binding.settingsPanel.visibility = View.VISIBLE
@@ -1712,7 +1725,7 @@ class PlayerActivity : BaseActivity() {
                     focusAdvancedControl()
                     return true
                 }
-                if (controlsVisible) {
+                if (osdMode != OsdMode.Hidden) {
                     setControlsVisible(false)
                     return true
                 }
@@ -1724,7 +1737,7 @@ class PlayerActivity : BaseActivity() {
                 if (binding.settingsPanel.visibility == View.VISIBLE) return super.dispatchKeyEvent(event)
                 // TV-style shortcut: when OSD is hidden, UP directly opens the playlist (video list)
                 // instead of first bringing up the OSD.
-                if (!controlsVisible) {
+                if (osdMode == OsdMode.Hidden) {
                     val hasPlaylist = playlistItems.isNotEmpty() && playlistIndex in playlistItems.indices
                     if (hasPlaylist) {
                         showPlaylistDialog()
@@ -1745,7 +1758,7 @@ class PlayerActivity : BaseActivity() {
                     focusFirstControl()
                     return true
                 }
-                if (!controlsVisible) {
+                if (osdMode == OsdMode.Hidden) {
                     setControlsVisible(true)
                     focusFirstControl()
                     return true
@@ -1757,12 +1770,12 @@ class PlayerActivity : BaseActivity() {
             KeyEvent.KEYCODE_NUMPAD_ENTER,
             -> {
                 if (binding.settingsPanel.visibility != View.VISIBLE && !hasControlsFocus()) {
-                    if (!controlsVisible) player?.pause()
+                    if (osdMode == OsdMode.Hidden) player?.pause()
                     setControlsVisible(true)
                     focusFirstControl()
                     return true
                 }
-                if (!controlsVisible && binding.settingsPanel.visibility != View.VISIBLE) {
+                if (osdMode == OsdMode.Hidden && binding.settingsPanel.visibility != View.VISIBLE) {
                     player?.pause()
                     setControlsVisible(true)
                     focusFirstControl()
@@ -1800,6 +1813,7 @@ class PlayerActivity : BaseActivity() {
                     return true
                 }
 
+                showSeekOsd()
                 smartSeek(direction = -1, showControls = false, hintKind = SeekHintKind.Step)
                 return true
             }
@@ -1816,6 +1830,7 @@ class PlayerActivity : BaseActivity() {
                     return true
                 }
 
+                showSeekOsd()
                 smartSeek(direction = +1, showControls = false, hintKind = SeekHintKind.Step)
                 return true
             }
@@ -1851,6 +1866,7 @@ class PlayerActivity : BaseActivity() {
         autoResumeHintTimeoutJob?.cancel()
         reportProgressJob?.cancel()
         autoHideJob?.cancel()
+        seekOsdHideJob?.cancel()
         holdSeekJob?.cancel()
         seekHintJob?.cancel()
         keyScrubEndJob?.cancel()
@@ -1887,11 +1903,12 @@ class PlayerActivity : BaseActivity() {
                             binding.btnPlayPause.performClick()
                             return true
                         }
-                        if (controlsVisible) {
+                        if (osdMode != OsdMode.Hidden) {
                             setControlsVisible(false)
                             return true
                         }
 
+                        showSeekOsd()
                         smartSeek(direction = dir, showControls = false, hintKind = SeekHintKind.Step)
                         tapSeekActiveDirection = dir
                         tapSeekActiveUntilMs = SystemClock.uptimeMillis() + TAP_SEEK_ACTIVE_MS
@@ -1905,7 +1922,7 @@ class PlayerActivity : BaseActivity() {
                             focusFirstControl()
                             return true
                         }
-                        if (controlsVisible) {
+                        if (osdMode != OsdMode.Hidden) {
                             setControlsVisible(false)
                             return true
                         }
@@ -1915,6 +1932,7 @@ class PlayerActivity : BaseActivity() {
                         if (w > 0f && now <= tapSeekActiveUntilMs) {
                             val dir = edgeDirection(e.x, w)
                             if (dir != 0 && dir == tapSeekActiveDirection) {
+                                showSeekOsd()
                                 smartSeek(direction = dir, showControls = false, hintKind = SeekHintKind.Step)
                                 tapSeekActiveUntilMs = now + TAP_SEEK_ACTIVE_MS
                                 return true
@@ -2105,7 +2123,7 @@ class PlayerActivity : BaseActivity() {
     }
 
     private fun toggleControls() {
-        val willShow = !controlsVisible
+        val willShow = osdMode == OsdMode.Hidden
         if (!willShow) {
             binding.settingsPanel.visibility = View.GONE
         }
@@ -2113,17 +2131,94 @@ class PlayerActivity : BaseActivity() {
     }
 
     private fun setControlsVisible(visible: Boolean) {
-        controlsVisible = visible
         val show = visible || binding.settingsPanel.visibility == View.VISIBLE
+        seekOsdHideJob?.cancel()
+        seekOsdHideJob = null
+        seekOsdToken = 0L
+        osdMode = if (show) OsdMode.Full else OsdMode.Hidden
+
+        binding.controlsRow.visibility = if (show) View.VISIBLE else View.GONE
+        binding.tvTime.visibility = if (show) View.VISIBLE else View.GONE
         binding.topBar.visibility = if (show) View.VISIBLE else View.GONE
         binding.bottomBar.visibility = if (show) View.VISIBLE else View.GONE
+        if (show) applyBottomBarFullLayout()
         updatePersistentBottomProgressBarVisibility()
         if (visible) noteUserInteraction() else autoHideJob?.cancel()
     }
 
+    private fun showSeekOsd() {
+        if (binding.settingsPanel.visibility == View.VISIBLE) return
+        if (osdMode == OsdMode.Full) {
+            // Full OSD already has the progress bar; keep it alive.
+            noteUserInteraction()
+            return
+        }
+
+        osdMode = OsdMode.SeekTransient
+        binding.topBar.visibility = View.GONE
+        applyBottomBarSeekLayout()
+        binding.controlsRow.visibility = View.GONE
+        binding.tvTime.visibility = View.VISIBLE
+        binding.bottomBar.visibility = View.VISIBLE
+        updatePersistentBottomProgressBarVisibility()
+        scheduleHideSeekOsd()
+    }
+
+    private fun ensureBottomBarConstraintSets() {
+        if (bottomBarFullConstraints != null && bottomBarSeekConstraints != null) return
+        bottomBarFullConstraints =
+            ConstraintSet().also { set ->
+                set.clone(binding.bottomBar)
+                set.setVisibility(R.id.controls_row, View.VISIBLE)
+                set.setVisibility(R.id.tv_time, View.VISIBLE)
+            }
+        bottomBarSeekConstraints =
+            ConstraintSet().also { set ->
+                set.clone(binding.bottomBar)
+                // Seek OSD: show SeekBar + time only.
+                set.setVisibility(R.id.controls_row, View.GONE)
+                set.setVisibility(R.id.tv_time, View.VISIBLE)
+                // Ensure the (gone) controls row doesn't constrain the bottom edge in wrap-content mode.
+                set.clear(R.id.controls_row, ConstraintSet.TOP)
+                set.clear(R.id.controls_row, ConstraintSet.BOTTOM)
+
+                // Move time text below SeekBar so it can remain visible without the button row.
+                set.clear(R.id.tv_time, ConstraintSet.TOP)
+                set.clear(R.id.tv_time, ConstraintSet.BOTTOM)
+                set.connect(R.id.tv_time, ConstraintSet.TOP, R.id.seek_progress, ConstraintSet.BOTTOM)
+                set.connect(R.id.tv_time, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
+                set.setVerticalBias(R.id.tv_time, 1.0f)
+            }
+    }
+
+    private fun applyBottomBarFullLayout() {
+        ensureBottomBarConstraintSets()
+        bottomBarFullConstraints?.applyTo(binding.bottomBar)
+    }
+
+    private fun applyBottomBarSeekLayout() {
+        ensureBottomBarConstraintSets()
+        bottomBarSeekConstraints?.applyTo(binding.bottomBar)
+    }
+
+    private fun scheduleHideSeekOsd() {
+        seekOsdHideJob?.cancel()
+        val token = SystemClock.uptimeMillis()
+        seekOsdToken = token
+        seekOsdHideJob =
+            lifecycleScope.launch {
+                delay(SEEK_OSD_HIDE_DELAY_MS)
+                if (seekOsdToken != token) return@launch
+                if (osdMode != OsdMode.SeekTransient) return@launch
+                osdMode = OsdMode.Hidden
+                binding.bottomBar.visibility = View.GONE
+                updatePersistentBottomProgressBarVisibility()
+            }
+    }
+
     private fun updatePersistentBottomProgressBarVisibility() {
         val enabled = BiliClient.prefs.playerPersistentBottomProgressEnabled
-        val showControls = controlsVisible || binding.settingsPanel.visibility == View.VISIBLE
+        val showControls = osdMode != OsdMode.Hidden || binding.settingsPanel.visibility == View.VISIBLE
         val v = if (enabled && !showControls) View.VISIBLE else View.GONE
         if (binding.progressPersistentBottom.visibility != v) binding.progressPersistentBottom.visibility = v
     }
@@ -2131,7 +2226,7 @@ class PlayerActivity : BaseActivity() {
     private fun restartAutoHideTimer() {
         autoHideJob?.cancel()
         val exo = player ?: return
-        if (!controlsVisible) return
+        if (osdMode != OsdMode.Full) return
         if (binding.settingsPanel.visibility == View.VISIBLE) return
         if (scrubbing) return
         if (!exo.isPlaying) return
@@ -2400,7 +2495,7 @@ class PlayerActivity : BaseActivity() {
         if (isSecond) return true
         lastBackAtMs = now
         Toast.makeText(this, "再按一次退出播放器", Toast.LENGTH_SHORT).show()
-        if (controlsVisible) setControlsVisible(false)
+        if (osdMode != OsdMode.Hidden) setControlsVisible(false)
         return false
     }
 
@@ -2423,7 +2518,7 @@ class PlayerActivity : BaseActivity() {
         smartSeekLastAtMs = now
 
         if (showControls) {
-            if (!controlsVisible && binding.settingsPanel.visibility != View.VISIBLE) setControlsVisible(true) else noteUserInteraction()
+            if (osdMode != OsdMode.Full && binding.settingsPanel.visibility != View.VISIBLE) setControlsVisible(true) else noteUserInteraction()
         } else {
             noteUserInteraction()
         }
@@ -2452,7 +2547,7 @@ class PlayerActivity : BaseActivity() {
         val exo = player ?: return
 
         if (showControls) {
-            if (!controlsVisible && binding.settingsPanel.visibility != View.VISIBLE) setControlsVisible(true) else noteUserInteraction()
+            if (osdMode != OsdMode.Full && binding.settingsPanel.visibility != View.VISIBLE) setControlsVisible(true) else noteUserInteraction()
         } else {
             noteUserInteraction()
         }
@@ -4780,6 +4875,7 @@ class PlayerActivity : BaseActivity() {
         private const val HOLD_REWIND_STEP_MS = 520L
         private const val BACK_DOUBLE_PRESS_WINDOW_MS = 1_500L
         private const val SEEK_HINT_HIDE_DELAY_MS = 900L
+        private const val SEEK_OSD_HIDE_DELAY_MS = 1_500L
         private const val AUTO_SKIP_START_WINDOW_MS = 1_000L
         private const val AUTO_SKIP_DELAY_MS = 2_000L
         private const val KEY_SCRUB_END_DELAY_MS = 800L

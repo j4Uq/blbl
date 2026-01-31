@@ -10,7 +10,7 @@
         <clip>
             <shape android:shape="rectangle">
                 <size android:height="@dimen/player_persistent_progress_height" />
-                <solid android:color="#4DFFFFFF" />
+                <solid android:color="#2CFFFFFF" />
             </shape>
         </clip>
     </item>

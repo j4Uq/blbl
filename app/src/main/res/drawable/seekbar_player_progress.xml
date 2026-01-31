@@ -12,7 +12,7 @@
             <shape android:shape="rectangle">
                 <size android:height="@dimen/player_seekbar_track_height" />
                 <corners android:radius="@dimen/player_seekbar_corner_radius" />
-                <solid android:color="#70FFFFFF" />
+                <solid android:color="#58FFFFFF" />
             </shape>
         </clip>
     </item>
