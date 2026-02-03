@@ -4,7 +4,7 @@ import androidx.fragment.app.Fragment
 import androidx.viewpager2.adapter.FragmentStateAdapter
 
 class MyPagerAdapter(fragment: Fragment) : FragmentStateAdapter(fragment) {
-    override fun getItemCount(): Int = 5
+    override fun getItemCount(): Int = 6
 
     override fun createFragment(position: Int): Fragment {
         return when (position) {
@@ -12,8 +12,8 @@ class MyPagerAdapter(fragment: Fragment) : FragmentStateAdapter(fragment) {
             1 -> MyFavFoldersFragment()
             2 -> MyBangumiFollowFragment.newInstance(type = 1)
             3 -> MyBangumiFollowFragment.newInstance(type = 2)
-            else -> MyToViewFragment()
+            4 -> MyToViewFragment()
+            else -> MyLikeFragment()
         }
     }
 }
-

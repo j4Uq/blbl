@@ -18,6 +18,7 @@
     <string name="my_tab_bangumi">追番</string>
     <string name="my_tab_drama">追剧</string>
     <string name="my_tab_toview">稍后再看</string>
+    <string name="my_tab_like">最近点赞</string>
 
     <string name="my_need_login">该页面需要登录</string>
     <string name="my_qr_login">二维码登录</string>

@@ -1186,6 +1186,29 @@ object BiliApi {
         return withContext(Dispatchers.Default) { parseVideoCards(list) }
     }
 
+    suspend fun spaceLikeVideoList(vmid: Long): List<VideoCard> {
+        val mid = vmid.takeIf { it > 0 } ?: error("space_like_video_invalid_vmid")
+        val url =
+            BiliClient.withQuery(
+                "https://api.bilibili.com/x/space/like/video",
+                mapOf("vmid" to mid.toString()),
+            )
+        val json = BiliClient.getJson(url)
+        val code = json.optInt("code", 0)
+        if (code != 0) {
+            val msg = json.optString("message", json.optString("msg", ""))
+            throw BiliApiException(apiCode = code, apiMessage = msg)
+        }
+        val dataAny = json.opt("data")
+        val list =
+            when (dataAny) {
+                is JSONObject -> dataAny.optJSONArray("list") ?: JSONArray()
+                is JSONArray -> dataAny
+                else -> JSONArray()
+            }
+        return withContext(Dispatchers.Default) { parseVideoCards(list) }
+    }
+
     private suspend fun favFolderInfo(mediaId: Long): FavFolder? {
         val url = BiliClient.withQuery(
             "https://api.bilibili.com/x/v3/fav/folder/info",

@@ -37,7 +37,8 @@ class MyTabsFragment : Fragment(), MyTabContentSwitchFocusHost, BackPressHandler
                     1 -> getString(R.string.my_tab_fav)
                     2 -> getString(R.string.my_tab_bangumi)
                     3 -> getString(R.string.my_tab_drama)
-                    else -> getString(R.string.my_tab_toview)
+                    4 -> getString(R.string.my_tab_toview)
+                    else -> getString(R.string.my_tab_like)
                 }
         }.attach()
 
