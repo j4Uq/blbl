@@ -51,11 +51,13 @@ import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.prefs.AppPrefs
 import blbl.cat3399.core.ui.ActivityStackLimiter
 import blbl.cat3399.core.ui.BaseActivity
+import blbl.cat3399.core.ui.DoubleBackToExitHandler
 import blbl.cat3399.core.ui.Immersive
 import blbl.cat3399.core.ui.SingleChoiceDialog
 import blbl.cat3399.core.ui.UiScale
 import blbl.cat3399.core.util.Format as BlblFormat
 import blbl.cat3399.feature.following.UpDetailActivity
+import blbl.cat3399.feature.player.danmaku.DanmakuSessionSettings
 import blbl.cat3399.feature.settings.SettingsActivity
 import blbl.cat3399.databinding.ActivityPlayerBinding
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -70,7 +72,6 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
-import java.io.IOException
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -79,20 +80,7 @@ class PlayerActivity : BaseActivity() {
     private lateinit var binding: ActivityPlayerBinding
     private var player: ExoPlayer? = null
     private var debugJob: kotlinx.coroutines.Job? = null
-    private var debugCdnHost: String? = null
-    private var debugVideoTransferHost: String? = null
-    private var debugAudioTransferHost: String? = null
-    private var debugVideoDecoderName: String? = null
-    private var debugVideoInputWidth: Int? = null
-    private var debugVideoInputHeight: Int? = null
-    private var debugVideoInputFps: Float? = null
-    private var debugDroppedFramesTotal: Long = 0L
-    private var debugRebufferCount: Int = 0
-    private var debugLastPlaybackState: Int = Player.STATE_IDLE
-    private var debugRenderFps: Float? = null
-    private var debugRenderFpsLastAtMs: Long? = null
-    private var debugRenderedFramesLastCount: Int? = null
-    private var debugRenderedFramesLastAtMs: Long? = null
+    private val debug = PlayerDebugMetrics()
     private var progressJob: kotlinx.coroutines.Job? = null
     private var autoResumeJob: kotlinx.coroutines.Job? = null
     private var autoResumeHintTimeoutJob: kotlinx.coroutines.Job? = null
@@ -107,7 +95,6 @@ class PlayerActivity : BaseActivity() {
     private var keyScrubEndJob: kotlinx.coroutines.Job? = null
     private var scrubbing: Boolean = false
     private var lastInteractionAtMs: Long = 0L
-    private var lastBackAtMs: Long = 0L
     private var finishOnBackKeyUp: Boolean = false
     private var holdPrevSpeed: Float = 1.0f
     private var holdPrevPlayWhenReady: Boolean = false
@@ -121,6 +108,12 @@ class PlayerActivity : BaseActivity() {
     private var coinActionJob: kotlinx.coroutines.Job? = null
     private var favDialogJob: kotlinx.coroutines.Job? = null
     private var favApplyJob: kotlinx.coroutines.Job? = null
+
+    private val doubleBackToExit by lazy {
+        DoubleBackToExitHandler(context = this, windowMs = BACK_DOUBLE_PRESS_WINDOW_MS) {
+            if (osdMode != OsdMode.Hidden) setControlsVisible(false)
+        }
+    }
 
     private var smartSeekDirection: Int = 0
     private var smartSeekStreak: Int = 0
@@ -456,10 +449,10 @@ class PlayerActivity : BaseActivity() {
                         else -> playbackState.toString()
                     }
                 trace?.log("exo:state", "state=$state pos=${exo.currentPosition}ms")
-                if (playbackState == Player.STATE_BUFFERING && debugLastPlaybackState != Player.STATE_BUFFERING && exo.playWhenReady) {
-                    debugRebufferCount++
+                if (playbackState == Player.STATE_BUFFERING && debug.lastPlaybackState != Player.STATE_BUFFERING && exo.playWhenReady) {
+                    debug.rebufferCount++
                 }
-                debugLastPlaybackState = playbackState
+                debug.lastPlaybackState = playbackState
                 if (playbackState == Player.STATE_ENDED) {
                     stopReportProgressLoop(flush = true, reason = "ended")
                     handlePlaybackEnded(exo)
@@ -481,29 +474,29 @@ class PlayerActivity : BaseActivity() {
                 initializedTimestampMs: Long,
                 initializationDurationMs: Long,
             ) {
-                debugVideoDecoderName = decoderName
+                debug.videoDecoderName = decoderName
             }
 
             override fun onVideoInputFormatChanged(eventTime: EventTime, format: Format, decoderReuseEvaluation: DecoderReuseEvaluation?) {
-                debugVideoInputWidth = format.width.takeIf { it > 0 }
-                debugVideoInputHeight = format.height.takeIf { it > 0 }
-                debugVideoInputFps = format.frameRate.takeIf { it > 0f }
+                debug.videoInputWidth = format.width.takeIf { it > 0 }
+                debug.videoInputHeight = format.height.takeIf { it > 0 }
+                debug.videoInputFps = format.frameRate.takeIf { it > 0f }
             }
 
             override fun onDroppedVideoFrames(eventTime: EventTime, droppedFrames: Int, elapsedMs: Long) {
-                debugDroppedFramesTotal += droppedFrames.toLong().coerceAtLeast(0L)
+                debug.droppedFramesTotal += droppedFrames.toLong().coerceAtLeast(0L)
             }
 
             override fun onVideoFrameProcessingOffset(eventTime: EventTime, totalProcessingOffsetUs: Long, frameCount: Int) {
                 val now = eventTime.realtimeMs
-                val last = debugRenderFpsLastAtMs
-                debugRenderFpsLastAtMs = now
+                val last = debug.renderFpsLastAtMs
+                debug.renderFpsLastAtMs = now
                 if (last == null) return
                 val deltaMs = now - last
                 if (deltaMs <= 0L || deltaMs > 60_000L) return
                 val frames = frameCount.coerceAtLeast(0)
                 if (frames == 0) return
-                debugRenderFps = (frames * 1000f) / deltaMs.toFloat()
+                debug.renderFps = (frames * 1000f) / deltaMs.toFloat()
             }
 
             override fun onRenderedFirstFrame(eventTime: EventTime, output: Any, renderTimeMs: Long) {
@@ -710,7 +703,7 @@ class PlayerActivity : BaseActivity() {
 
         val title =
             playlistUgcSeasonTitle?.let { "合集：$it" }
-                ?: if (isMultiPagePlaylist(list)) "分P" else "播放列表"
+                ?: if (isMultiPagePlaylist(list, currentBvid)) "分P" else "播放列表"
         val labels =
             list.mapIndexed { index, item ->
                 item.title?.trim()?.takeIf { it.isNotBlank() }
@@ -800,103 +793,6 @@ class PlayerActivity : BaseActivity() {
             setControlsVisible(true)
             binding.btnRecommend.post { binding.btnRecommend.requestFocus() }
         }
-    }
-
-    private fun parseUgcSeasonPlaylistFromView(ugcSeason: JSONObject): List<PlayerPlaylistItem> {
-        val sections = ugcSeason.optJSONArray("sections") ?: return emptyList()
-        val out = ArrayList<PlayerPlaylistItem>(ugcSeason.optInt("ep_count").coerceAtLeast(0))
-        for (i in 0 until sections.length()) {
-            val section = sections.optJSONObject(i) ?: continue
-            val eps = section.optJSONArray("episodes") ?: continue
-            for (j in 0 until eps.length()) {
-                val ep = eps.optJSONObject(j) ?: continue
-                val arc = ep.optJSONObject("arc") ?: JSONObject()
-                val bvid = ep.optString("bvid", "").trim().ifBlank { arc.optString("bvid", "").trim() }
-                if (bvid.isBlank()) continue
-                val cid = ep.optLong("cid").takeIf { it > 0 } ?: arc.optLong("cid").takeIf { it > 0 }
-                val aid = ep.optLong("aid").takeIf { it > 0 } ?: arc.optLong("aid").takeIf { it > 0 }
-                val title = ep.optString("title", "").trim().takeIf { it.isNotBlank() } ?: arc.optString("title", "").trim()
-                out.add(
-                    PlayerPlaylistItem(
-                        bvid = bvid,
-                        cid = cid,
-                        aid = aid,
-                        title = title.takeIf { it.isNotBlank() },
-                    ),
-                )
-            }
-        }
-        return out
-    }
-
-    private fun parseMultiPagePlaylistFromView(viewData: JSONObject, bvid: String, aid: Long?): List<PlayerPlaylistItem> {
-        val pages = viewData.optJSONArray("pages") ?: return emptyList()
-        if (pages.length() <= 1) return emptyList()
-        val out = ArrayList<PlayerPlaylistItem>(pages.length())
-        for (i in 0 until pages.length()) {
-            val obj = pages.optJSONObject(i) ?: continue
-            val cid = obj.optLong("cid").takeIf { it > 0 } ?: continue
-            val page = obj.optInt("page").takeIf { it > 0 } ?: (i + 1)
-            val part = obj.optString("part", "").trim()
-            val title =
-                if (part.isBlank()) {
-                    "P$page"
-                } else {
-                    "P$page $part"
-                }
-            out.add(
-                PlayerPlaylistItem(
-                    bvid = bvid,
-                    cid = cid,
-                    aid = aid,
-                    title = title,
-                ),
-            )
-        }
-        return out
-    }
-
-    private fun parseUgcSeasonPlaylistFromArchivesList(json: JSONObject): List<PlayerPlaylistItem> {
-        val archives = json.optJSONObject("data")?.optJSONArray("archives") ?: return emptyList()
-        val out = ArrayList<PlayerPlaylistItem>(archives.length())
-        for (i in 0 until archives.length()) {
-            val obj = archives.optJSONObject(i) ?: continue
-            val bvid = obj.optString("bvid", "").trim()
-            if (bvid.isBlank()) continue
-            val aid = obj.optLong("aid").takeIf { it > 0 }
-            val title = obj.optString("title", "").trim().takeIf { it.isNotBlank() }
-            out.add(
-                PlayerPlaylistItem(
-                    bvid = bvid,
-                    aid = aid,
-                    title = title,
-                ),
-            )
-        }
-        return out
-    }
-
-    private fun pickPlaylistIndexForCurrentMedia(list: List<PlayerPlaylistItem>, bvid: String, aid: Long?, cid: Long?): Int {
-        val safeBvid = bvid.trim()
-        if (cid != null && cid > 0) {
-            val byCid = list.indexOfFirst { it.cid == cid }
-            if (byCid >= 0) return byCid
-        }
-        if (aid != null && aid > 0) {
-            val byAid = list.indexOfFirst { it.aid == aid }
-            if (byAid >= 0) return byAid
-        }
-        if (safeBvid.isNotBlank()) {
-            val byBvid = list.indexOfFirst { it.bvid == safeBvid }
-            if (byBvid >= 0) return byBvid
-        }
-        return -1
-    }
-
-    private fun isMultiPagePlaylist(list: List<PlayerPlaylistItem>): Boolean {
-        if (list.size < 2) return false
-        val bvid = currentBvid.takeIf { it.isNotBlank() } ?: return false
-        return list.all { it.bvid == bvid && (it.cid ?: 0L) > 0L }
     }
 
     private fun shouldKeepExternalPlaylistFixed(): Boolean {
@@ -1161,20 +1057,7 @@ class PlayerActivity : BaseActivity() {
         session = session.copy(actualQn = 0)
         session = session.copy(actualAudioId = 0)
         currentViewDurationMs = null
-        debugCdnHost = null
-        debugVideoTransferHost = null
-        debugAudioTransferHost = null
-        debugVideoDecoderName = null
-        debugVideoInputWidth = null
-        debugVideoInputHeight = null
-        debugVideoInputFps = null
-        debugDroppedFramesTotal = 0L
-        debugRebufferCount = 0
-        debugLastPlaybackState = Player.STATE_IDLE
-        debugRenderFps = null
-        debugRenderFpsLastAtMs = null
-        debugRenderedFramesLastCount = null
-        debugRenderedFramesLastAtMs = null
+        debug.reset()
         subtitleAvailabilityKnown = false
         subtitleAvailable = false
         subtitleConfig = null
@@ -1376,7 +1259,7 @@ class PlayerActivity : BaseActivity() {
                     when (playable) {
                         is Playable.Dash -> {
                             lastPickedDash = playable
-                            debugCdnHost = runCatching { Uri.parse(playable.videoUrl).host }.getOrNull()
+                            debug.cdnHost = runCatching { Uri.parse(playable.videoUrl).host }.getOrNull()
 	                            AppLog.i(
 	                                "Player",
 	                                "picked DASH qn=${playable.qn} codecid=${playable.codecid} dv=${playable.isDolbyVision} a=${playable.audioKind}(${playable.audioId}) video=${playable.videoUrl.take(40)}",
@@ -1392,7 +1275,7 @@ class PlayerActivity : BaseActivity() {
                             lastPickedDash = null
                             session = session.copy(actualAudioId = 0)
                             (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
-                            debugCdnHost = runCatching { Uri.parse(playable.videoUrl).host }.getOrNull()
+                            debug.cdnHost = runCatching { Uri.parse(playable.videoUrl).host }.getOrNull()
 	                            AppLog.i(
 	                                "Player",
 	                                "picked VideoOnly qn=${playable.qn} codecid=${playable.codecid} dv=${playable.isDolbyVision} video=${playable.videoUrl.take(40)}",
@@ -1406,7 +1289,7 @@ class PlayerActivity : BaseActivity() {
                             lastPickedDash = null
 	                            session = session.copy(actualAudioId = 0)
 	                            (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
-	                            debugCdnHost = runCatching { Uri.parse(playable.url).host }.getOrNull()
+	                            debug.cdnHost = runCatching { Uri.parse(playable.url).host }.getOrNull()
 	                            AppLog.i("Player", "picked Progressive url=${playable.url.take(60)}")
 	                            val mainFactory = createCdnFactory(DebugStreamKind.MAIN, urlCandidates = playable.urlCandidates)
 	                            exo.setMediaSource(buildProgressive(mainFactory, playable.url, subtitleConfig))
@@ -1731,7 +1614,7 @@ class PlayerActivity : BaseActivity() {
                     setControlsVisible(false)
                     return true
                 }
-                finishOnBackKeyUp = shouldFinishOnBackPress()
+                finishOnBackKeyUp = doubleBackToExit.shouldExit(enabled = BiliClient.prefs.playerDoubleBackToExit)
                 return true
             }
 
@@ -2511,17 +2394,6 @@ class PlayerActivity : BaseActivity() {
         }
     }
 
-    private fun shouldFinishOnBackPress(): Boolean {
-        if (!BiliClient.prefs.playerDoubleBackToExit) return true
-        val now = SystemClock.uptimeMillis()
-        val isSecond = now - lastBackAtMs <= BACK_DOUBLE_PRESS_WINDOW_MS
-        if (isSecond) return true
-        lastBackAtMs = now
-        Toast.makeText(this, "再按一次退出播放器", Toast.LENGTH_SHORT).show()
-        if (osdMode != OsdMode.Hidden) setControlsVisible(false)
-        return false
-    }
-
     private fun smartSeek(direction: Int) {
         smartSeek(direction, showControls = true, hintKind = SeekHintKind.Step)
     }
@@ -3027,7 +2899,7 @@ class PlayerActivity : BaseActivity() {
         if (playbackToken != autoResumeToken) return
         val exo = player ?: return
 
-        val strictCidMatch = isMultiPagePlaylist(playlistItems)
+        val strictCidMatch = isMultiPagePlaylist(playlistItems, currentBvid)
         extractResumeCandidateFromPlayJson(playJson)?.let { cand ->
             val data = playJson.optJSONObject("data") ?: playJson.optJSONObject("result") ?: JSONObject()
             val lastCid = data.optLong("last_play_cid", -1L).takeIf { it > 0 }
@@ -3273,41 +3145,6 @@ class PlayerActivity : BaseActivity() {
                 .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, disable)
                 .build()
     }
-
-    private sealed interface Playable {
-        data class Dash(
-            val videoUrl: String,
-            val audioUrl: String,
-            val videoUrlCandidates: List<String>,
-            val audioUrlCandidates: List<String>,
-            val qn: Int,
-            val codecid: Int,
-            val audioId: Int,
-            val audioKind: DashAudioKind,
-            val isDolbyVision: Boolean,
-        ) : Playable
-
-        data class VideoOnly(
-            val videoUrl: String,
-            val videoUrlCandidates: List<String>,
-            val qn: Int,
-            val codecid: Int,
-            val isDolbyVision: Boolean,
-        ) : Playable
-
-        data class Progressive(
-            val url: String,
-            val urlCandidates: List<String>,
-        ) : Playable
-    }
-
-    private enum class DashAudioKind { NORMAL, DOLBY, FLAC }
-
-    private data class PlaybackConstraints(
-        val allowDolbyVision: Boolean = true,
-        val allowDolbyAudio: Boolean = true,
-        val allowFlacAudio: Boolean = true,
-    )
 
     private fun Playable.Dash.shouldAttemptDolbyFallback(): Boolean =
         isDolbyVision || audioKind == DashAudioKind.DOLBY || audioKind == DashAudioKind.FLAC
@@ -3605,90 +3442,6 @@ class PlayerActivity : BaseActivity() {
         error("No playable url in playurl response")
     }
 
-    private enum class DebugStreamKind { VIDEO, AUDIO, MAIN }
-
-    private class CdnFailoverState(
-        val kind: DebugStreamKind,
-        val candidates: List<Uri>,
-    ) {
-        @Volatile
-        private var preferredIndex: Int = 0
-
-        @Synchronized
-        fun getPreferredIndex(): Int {
-            val last = candidates.lastIndex
-            return preferredIndex.coerceIn(0, last.coerceAtLeast(0))
-        }
-
-        @Synchronized
-        fun prefer(index: Int) {
-            val last = candidates.lastIndex
-            preferredIndex = index.coerceIn(0, last.coerceAtLeast(0))
-        }
-    }
-
-    private class CdnFailoverDataSourceFactory(
-        private val upstreamFactory: DataSource.Factory,
-        private val state: CdnFailoverState,
-    ) : DataSource.Factory {
-        override fun createDataSource(): DataSource = CdnFailoverDataSource(upstreamFactory, state)
-    }
-
-    private class CdnFailoverDataSource(
-        private val upstreamFactory: DataSource.Factory,
-        private val state: CdnFailoverState,
-    ) : DataSource {
-        private var upstream: DataSource? = null
-        private val transferListeners = ArrayList<TransferListener>(2)
-
-        override fun addTransferListener(transferListener: TransferListener) {
-            transferListeners.add(transferListener)
-            upstream?.addTransferListener(transferListener)
-        }
-
-        override fun open(dataSpec: DataSpec): Long {
-            closeQuietly()
-            val candidates = state.candidates
-            if (candidates.isEmpty()) throw IOException("No CDN candidates (kind=${state.kind})")
-
-            val start = state.getPreferredIndex()
-            var lastException: IOException? = null
-            for (attempt in candidates.indices) {
-                val idx = (start + attempt) % candidates.size
-                val uri = candidates[idx]
-                val ds = upstreamFactory.createDataSource()
-                transferListeners.forEach { ds.addTransferListener(it) }
-                val spec = dataSpec.buildUpon().setUri(uri).build()
-                try {
-                    val openedLength = ds.open(spec)
-                    upstream = ds
-                    state.prefer(idx)
-                    return openedLength
-                } catch (e: IOException) {
-                    runCatching { ds.close() }
-                    lastException = e
-                }
-            }
-            throw lastException ?: IOException("Failed to open any CDN candidate (kind=${state.kind})")
-        }
-
-        override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-            val ds = upstream ?: throw IllegalStateException("read() before open() (kind=${state.kind})")
-            return ds.read(buffer, offset, length)
-        }
-
-        override fun getUri(): Uri? = upstream?.uri
-
-        override fun close() {
-            closeQuietly()
-        }
-
-        private fun closeQuietly() {
-            runCatching { upstream?.close() }
-            upstream = null
-        }
-    }
-
     private fun createCdnFactory(kind: DebugStreamKind, urlCandidates: List<String>? = null): DataSource.Factory {
         val listener =
             object : TransferListener {
@@ -3698,9 +3451,9 @@ class PlayerActivity : BaseActivity() {
                     val host = dataSpec.uri.host?.trim().orEmpty()
                     if (host.isBlank()) return
                     when (kind) {
-                        DebugStreamKind.VIDEO -> debugVideoTransferHost = host
-                        DebugStreamKind.AUDIO -> debugAudioTransferHost = host
-                        DebugStreamKind.MAIN -> debugVideoTransferHost = host
+                        DebugStreamKind.VIDEO -> debug.videoTransferHost = host
+                        DebugStreamKind.AUDIO -> debug.audioTransferHost = host
+                        DebugStreamKind.MAIN -> debug.videoTransferHost = host
                     }
                 }
 
@@ -3818,7 +3571,7 @@ class PlayerActivity : BaseActivity() {
                 when (playable) {
 	                    is Playable.Dash -> {
 	                        lastPickedDash = playable
-	                        debugCdnHost = runCatching { Uri.parse(playable.videoUrl).host }.getOrNull()
+	                        debug.cdnHost = runCatching { Uri.parse(playable.videoUrl).host }.getOrNull()
 	                        val videoFactory = createCdnFactory(DebugStreamKind.VIDEO, urlCandidates = playable.videoUrlCandidates)
 	                        val audioFactory = createCdnFactory(DebugStreamKind.AUDIO, urlCandidates = playable.audioUrlCandidates)
 	                        exo.setMediaSource(buildMerged(videoFactory, audioFactory, playable.videoUrl, playable.audioUrl, subtitleConfig))
@@ -3829,7 +3582,7 @@ class PlayerActivity : BaseActivity() {
                         lastPickedDash = null
 	                        session = session.copy(actualAudioId = 0)
 	                        (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
-	                        debugCdnHost = runCatching { Uri.parse(playable.videoUrl).host }.getOrNull()
+	                        debug.cdnHost = runCatching { Uri.parse(playable.videoUrl).host }.getOrNull()
 	                        val mainFactory = createCdnFactory(DebugStreamKind.MAIN, urlCandidates = playable.videoUrlCandidates)
 	                        exo.setMediaSource(buildProgressive(mainFactory, playable.videoUrl, subtitleConfig))
 	                        applyResolutionFallbackIfNeeded(requestedQn = session.targetQn, actualQn = playable.qn)
@@ -3838,7 +3591,7 @@ class PlayerActivity : BaseActivity() {
                         lastPickedDash = null
 	                        session = session.copy(actualAudioId = 0)
 	                        (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
-	                        debugCdnHost = runCatching { Uri.parse(playable.url).host }.getOrNull()
+	                        debug.cdnHost = runCatching { Uri.parse(playable.url).host }.getOrNull()
 	                        val mainFactory = createCdnFactory(DebugStreamKind.MAIN, urlCandidates = playable.urlCandidates)
 	                        exo.setMediaSource(buildProgressive(mainFactory, playable.url, subtitleConfig))
 	                    }
@@ -3957,16 +3710,16 @@ class PlayerActivity : BaseActivity() {
         sb.append('\n')
 
         val trackFormat = pickSelectedVideoFormat(exo)
-        val res = buildDebugResolutionText(exo.videoSize, debugVideoInputWidth, debugVideoInputHeight, trackFormat)
+        val res = buildDebugResolutionText(exo.videoSize, debug.videoInputWidth, debug.videoInputHeight, trackFormat)
         sb.append("res=").append(res)
         val fps =
-            formatDebugFps(debugRenderFps)
-                ?: formatDebugFps(debugVideoInputFps ?: trackFormat?.frameRate)
+            formatDebugFps(debug.renderFps)
+                ?: formatDebugFps(debug.videoInputFps ?: trackFormat?.frameRate)
                 ?: "-"
         sb.append(" fps=").append(fps)
-        val cdnVideo = debugVideoTransferHost?.trim().takeIf { !it.isNullOrBlank() }
-        val cdnAudio = debugAudioTransferHost?.trim().takeIf { !it.isNullOrBlank() }
-        val cdnPicked = cdnVideo ?: debugCdnHost?.trim().takeIf { !it.isNullOrBlank() } ?: "-"
+        val cdnVideo = debug.videoTransferHost?.trim().takeIf { !it.isNullOrBlank() }
+        val cdnAudio = debug.audioTransferHost?.trim().takeIf { !it.isNullOrBlank() }
+        val cdnPicked = cdnVideo ?: debug.cdnHost?.trim().takeIf { !it.isNullOrBlank() } ?: "-"
         val cdnHost =
             if (!cdnAudio.isNullOrBlank() && !cdnVideo.isNullOrBlank() && cdnAudio != cdnVideo) {
                 "v=$cdnVideo a=$cdnAudio"
@@ -3982,11 +3735,11 @@ class PlayerActivity : BaseActivity() {
             sb.append('\n')
         }
 
-        sb.append("decoder=").append(shortenDebugValue(debugVideoDecoderName ?: "-", maxChars = 64))
+        sb.append("decoder=").append(shortenDebugValue(debug.videoDecoderName ?: "-", maxChars = 64))
         sb.append('\n')
 
-        sb.append("dropped=").append(debugDroppedFramesTotal)
-        sb.append(" rebuffer=").append(debugRebufferCount)
+        sb.append("dropped=").append(debug.droppedFramesTotal)
+        sb.append(" rebuffer=").append(debug.rebufferCount)
         return sb.toString()
     }
 
@@ -3996,14 +3749,14 @@ class PlayerActivity : BaseActivity() {
         counters.ensureUpdated()
 
         // Dropped frames: keep the max to avoid going backwards across updates.
-        debugDroppedFramesTotal = maxOf(debugDroppedFramesTotal, counters.droppedBufferCount.toLong())
+        debug.droppedFramesTotal = maxOf(debug.droppedFramesTotal, counters.droppedBufferCount.toLong())
 
         // Render fps: derive from rendered output buffers between overlay updates.
         val count = counters.renderedOutputBufferCount
-        val lastCount = debugRenderedFramesLastCount
-        val lastAt = debugRenderedFramesLastAtMs
-        debugRenderedFramesLastCount = count
-        debugRenderedFramesLastAtMs = nowMs
+        val lastCount = debug.renderedFramesLastCount
+        val lastAt = debug.renderedFramesLastAtMs
+        debug.renderedFramesLastCount = count
+        debug.renderedFramesLastAtMs = nowMs
 
         if (lastCount == null || lastAt == null) return
         val deltaMs = nowMs - lastAt
@@ -4011,7 +3764,7 @@ class PlayerActivity : BaseActivity() {
         if (deltaMs <= 0L || deltaMs > 10_000L) return
         if (deltaFrames <= 0) return
         val instantFps = (deltaFrames * 1000f) / deltaMs.toFloat()
-        debugRenderFps = debugRenderFps?.let { it * 0.7f + instantFps * 0.3f } ?: instantFps
+        debug.renderFps = debug.renderFps?.let { it * 0.7f + instantFps * 0.3f } ?: instantFps
     }
 
     private fun buildDebugResolutionText(vs: VideoSize, fallbackWidth: Int?, fallbackHeight: Int?, trackFormat: Format?): String {
@@ -4302,54 +4055,6 @@ class PlayerActivity : BaseActivity() {
         return buildSubtitleConfigFromItem(chosen, bvid, cid)
     }
 
-    private fun normalizeUrl(url: String): String {
-        val u = url.trim()
-        return when {
-            u.startsWith("//") -> "https:$u"
-            u.startsWith("http://") || u.startsWith("https://") -> u
-            else -> "https://$u"
-        }
-    }
-
-    private fun buildWebVtt(body: JSONArray): String {
-        val sb = StringBuilder()
-        sb.append("WEBVTT\n\n")
-        for (i in 0 until body.length()) {
-            val line = body.optJSONObject(i) ?: continue
-            val from = line.optDouble("from", -1.0)
-            val to = line.optDouble("to", -1.0)
-            val content = line.optString("content", "").trim()
-            if (from < 0 || to <= 0 || content.isBlank()) continue
-            sb.append(formatVttTime(from)).append(" --> ").append(formatVttTime(to)).append('\n')
-            sb.append(content.replace('\n', ' ')).append("\n\n")
-        }
-        return sb.toString()
-    }
-
-    private fun formatVttTime(sec: Double): String {
-        val ms = (sec * 1000.0).toLong().coerceAtLeast(0L)
-        val h = ms / 3_600_000
-        val m = (ms % 3_600_000) / 60_000
-        val s = (ms % 60_000) / 1000
-        val milli = ms % 1000
-        return String.format(Locale.US, "%02d:%02d:%02d.%03d", h, m, s, milli)
-    }
-
-    private fun formatHms(ms: Long): String {
-        val totalSec = (ms / 1000).coerceAtLeast(0L)
-        val h = totalSec / 3600
-        val m = (totalSec % 3600) / 60
-        val s = totalSec % 60
-        // Keep the same style as other duration displays:
-        // - < 1h: mm:ss (00:06 / 15:10)
-        // - >= 1h: h:mm:ss (1:01:20)
-        return if (h > 0) {
-            String.format(Locale.US, "%d:%02d:%02d", h, m, s)
-        } else {
-            String.format(Locale.US, "%02d:%02d", m, s)
-        }
-    }
-
     private data class SubtitleItem(
         val lan: String,
         val lanDoc: String,
@@ -4543,19 +4248,6 @@ class PlayerActivity : BaseActivity() {
         )
     }
 
-    private fun areaText(area: Float): String = when {
-        area >= 0.99f -> "不限"
-        area >= 0.78f -> "4/5"
-        area >= 0.71f -> "3/4"
-        area >= 0.62f -> "2/3"
-        area >= 0.55f -> "3/5"
-        area >= 0.45f -> "1/2"
-        area >= 0.36f -> "2/5"
-        area >= 0.29f -> "1/3"
-        area >= 0.22f -> "1/4"
-        else -> "1/5"
-    }
-
     private data class PlayerSessionSettings(
         val playbackSpeed: Float,
         val preferCodec: String,
@@ -4657,32 +4349,6 @@ class PlayerActivity : BaseActivity() {
             refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
             reloadStream(keepPosition = true)
         }
-    }
-
-    private fun audioLabel(id: Int): String = when (id) {
-        30251 -> "Hi-Res 无损"
-        30250 -> "杜比全景声"
-        30280 -> "192K"
-        30232 -> "132K"
-        30216 -> "64K"
-        else -> id.toString()
-    }
-
-    private fun qnLabel(qn: Int): String = when (qn) {
-        16 -> "360P 流畅"
-        32 -> "480P 清晰"
-        64 -> "720P 高清"
-        74 -> "720P60 高帧率"
-        80 -> "1080P 高清"
-        100 -> "智能修复"
-        112 -> "1080P+ 高码率"
-        116 -> "1080P60 高帧率"
-        120 -> "4K 超清"
-        125 -> "HDR 真彩色"
-        126 -> "杜比视界"
-        127 -> "8K 超高清"
-        129 -> "HDR Vivid"
-        else -> qn.toString()
     }
 
     private fun playUrlParamsForSession(): Pair<Int, Int> {
@@ -4788,30 +4454,6 @@ class PlayerActivity : BaseActivity() {
         }
 
         return out.distinct()
-    }
-
-    private fun qnRank(qn: Int): Int {
-        // Follow docs ordering (roughly increasing quality).
-        val order = intArrayOf(6, 16, 32, 64, 74, 80, 100, 112, 116, 120, 125, 126, 127, 129)
-        val idx = order.indexOf(qn)
-        return if (idx >= 0) idx else (order.size + qn)
-    }
-
-    private data class DanmakuSessionSettings(
-        val enabled: Boolean,
-        val opacity: Float,
-        val textSizeSp: Float,
-        val speedLevel: Int,
-        val area: Float,
-    ) {
-        fun toConfig(): blbl.cat3399.feature.player.danmaku.DanmakuConfig =
-            blbl.cat3399.feature.player.danmaku.DanmakuConfig(
-                enabled = enabled,
-                opacity = opacity,
-                textSizeSp = textSizeSp,
-                speedLevel = speedLevel,
-                area = area,
-            )
     }
 
     private fun applyUiMode() {

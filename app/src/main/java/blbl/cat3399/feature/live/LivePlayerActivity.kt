@@ -22,6 +22,7 @@ import blbl.cat3399.core.log.AppLog
 import blbl.cat3399.core.model.Danmaku
 import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.ui.BaseActivity
+import blbl.cat3399.core.ui.DoubleBackToExitHandler
 import blbl.cat3399.core.ui.Immersive
 import blbl.cat3399.core.ui.SingleChoiceDialog
 import blbl.cat3399.core.ui.UiScale
@@ -30,6 +31,7 @@ import blbl.cat3399.databinding.DialogLiveChatBinding
 import blbl.cat3399.feature.player.PlayerContentAutoScale
 import blbl.cat3399.feature.player.PlayerOsdSizing
 import blbl.cat3399.feature.player.PlayerSettingsAdapter
+import blbl.cat3399.feature.player.danmaku.DanmakuSessionSettings
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -45,7 +47,12 @@ class LivePlayerActivity : BaseActivity() {
     private var finishOnBackKeyUp: Boolean = false
     private var controlsVisible: Boolean = false
     private var lastInteractionAtMs: Long = 0L
-    private var lastBackAtMs: Long = 0L
+
+    private val doubleBackToExit by lazy {
+        DoubleBackToExitHandler(context = this, windowMs = BACK_DOUBLE_PRESS_WINDOW_MS) {
+            if (controlsVisible) setControlsVisible(false)
+        }
+    }
 
     private var roomId: Long = 0L
     private var realRoomId: Long = 0L
@@ -453,7 +460,7 @@ class LivePlayerActivity : BaseActivity() {
                 setControlsVisible(false)
                 return true
             }
-            finishOnBackKeyUp = shouldFinishOnBackPress()
+            finishOnBackKeyUp = doubleBackToExit.shouldExit(enabled = BiliClient.prefs.playerDoubleBackToExit)
             return true
         }
         return super.dispatchKeyEvent(event)
@@ -585,17 +592,6 @@ class LivePlayerActivity : BaseActivity() {
     private fun noteUserInteraction() {
         lastInteractionAtMs = SystemClock.uptimeMillis()
         restartAutoHideTimer()
-    }
-
-    private fun shouldFinishOnBackPress(): Boolean {
-        if (!BiliClient.prefs.playerDoubleBackToExit) return true
-        val now = SystemClock.uptimeMillis()
-        val isSecond = now - lastBackAtMs <= BACK_DOUBLE_PRESS_WINDOW_MS
-        if (isSecond) return true
-        lastBackAtMs = now
-        Toast.makeText(this, "再按一次退出播放器", Toast.LENGTH_SHORT).show()
-        if (controlsVisible) setControlsVisible(false)
-        return false
     }
 
     private fun isInteractionKey(keyCode: Int): Boolean {
@@ -847,28 +843,11 @@ class LivePlayerActivity : BaseActivity() {
         }
     }
 
-    private data class LiveDanmakuSession(
-        val enabled: Boolean,
-        val opacity: Float,
-        val textSizeSp: Float,
-        val speedLevel: Int,
-        val area: Float,
-    ) {
-        fun toConfig(): blbl.cat3399.feature.player.danmaku.DanmakuConfig =
-            blbl.cat3399.feature.player.danmaku.DanmakuConfig(
-                enabled = enabled,
-                opacity = opacity,
-                textSizeSp = textSizeSp,
-                speedLevel = speedLevel,
-                area = area,
-            )
-    }
-
     private data class LiveSession(
         val targetQn: Int = LIVE_QN_ORIGINAL,
         val lineOrder: Int = 1,
-        val danmaku: LiveDanmakuSession =
-            LiveDanmakuSession(
+        val danmaku: DanmakuSessionSettings =
+            DanmakuSessionSettings(
                 enabled = BiliClient.prefs.danmakuEnabled,
                 opacity = BiliClient.prefs.danmakuOpacity,
                 textSizeSp = BiliClient.prefs.danmakuTextSizeSp,
