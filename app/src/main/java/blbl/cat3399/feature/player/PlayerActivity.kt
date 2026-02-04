@@ -9,6 +9,7 @@ import android.view.GestureDetector
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup.MarginLayoutParams
 import android.widget.SeekBar
 import android.widget.Toast
@@ -121,6 +122,9 @@ class PlayerActivity : BaseActivity() {
     private var smartSeekTotalMs: Long = 0L
     private var tapSeekActiveDirection: Int = 0
     private var tapSeekActiveUntilMs: Long = 0L
+    private var keySeekHoldDetectJob: kotlinx.coroutines.Job? = null
+    private var keySeekPendingKeyCode: Int = 0
+    private var keySeekPendingDirection: Int = 0
     internal var riskControlBypassHintShown: Boolean = false
     private var seekOsdToken: Long = 0L
     private var transientSeekOsdVisible: Boolean = false
@@ -1560,9 +1564,21 @@ class PlayerActivity : BaseActivity() {
                 }
                 return true
             }
-            if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+
+            if (isSeekKey(keyCode)) {
+                // Always stop any pending "tap vs hold" decision when the key is released.
+                // Capture before clearing so a tap can commit the step seek.
+                val pendingDir = keySeekPendingDirection.takeIf { keySeekPendingKeyCode == keyCode } ?: 0
+                if (keySeekPendingKeyCode == keyCode) clearKeySeekPending()
+
                 if (holdSeekJob != null) {
                     stopHoldSeek()
+                    return true
+                }
+
+                if (pendingDir != 0) {
+                    showSeekOsd()
+                    smartSeek(direction = pendingDir, showControls = false, hintKind = SeekHintKind.Step)
                     return true
                 }
             }
@@ -1695,12 +1711,13 @@ class PlayerActivity : BaseActivity() {
 
                 if (event.repeatCount > 0) {
                     showSeekOsd()
+                    clearKeySeekPending()
                     startHoldSeek(direction = -1, showControls = false)
                     return true
                 }
 
                 showSeekOsd()
-                smartSeek(direction = -1, showControls = false, hintKind = SeekHintKind.Step)
+                beginKeySeekPending(keyCode = keyCode, direction = -1, showControls = false)
                 return true
             }
 
@@ -1713,12 +1730,13 @@ class PlayerActivity : BaseActivity() {
 
                 if (event.repeatCount > 0) {
                     showSeekOsd()
+                    clearKeySeekPending()
                     startHoldSeek(direction = +1, showControls = false)
                     return true
                 }
 
                 showSeekOsd()
-                smartSeek(direction = +1, showControls = false, hintKind = SeekHintKind.Step)
+                beginKeySeekPending(keyCode = keyCode, direction = +1, showControls = false)
                 return true
             }
         }
@@ -2401,6 +2419,46 @@ class PlayerActivity : BaseActivity() {
     private enum class SeekHintKind {
         Step,
         Hold,
+    }
+
+    private fun isSeekKey(keyCode: Int): Boolean {
+        return when (keyCode) {
+            KeyEvent.KEYCODE_DPAD_LEFT,
+            KeyEvent.KEYCODE_DPAD_RIGHT,
+            KeyEvent.KEYCODE_MEDIA_REWIND,
+            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
+            -> true
+
+            else -> false
+        }
+    }
+
+    private fun clearKeySeekPending() {
+        keySeekHoldDetectJob?.cancel()
+        keySeekHoldDetectJob = null
+        keySeekPendingKeyCode = 0
+        keySeekPendingDirection = 0
+    }
+
+    private fun beginKeySeekPending(keyCode: Int, direction: Int, showControls: Boolean) {
+        clearKeySeekPending()
+        keySeekPendingKeyCode = keyCode
+        keySeekPendingDirection = direction
+
+        // Delay to decide tap vs hold:
+        // - If repeats arrive, dispatchKeyEvent() will start hold immediately and clear this pending state.
+        // - If no repeats (some remotes/media keys), start hold after the long-press timeout.
+        val timeoutMs = ViewConfiguration.getLongPressTimeout().toLong()
+        keySeekHoldDetectJob =
+            lifecycleScope.launch {
+                delay(timeoutMs)
+                if (keySeekPendingKeyCode != keyCode || keySeekPendingDirection != direction) return@launch
+                if (holdSeekJob != null) return@launch
+                showSeekOsd()
+                startHoldSeek(direction = direction, showControls = showControls)
+                // Once we enter hold, a later ACTION_UP should only stop the hold (no step seek).
+                clearKeySeekPending()
+            }
     }
 
     private fun smartSeek(direction: Int, showControls: Boolean, hintKind: SeekHintKind) {
