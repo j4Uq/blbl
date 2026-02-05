@@ -11,6 +11,7 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import blbl.cat3399.R
 import blbl.cat3399.core.log.AppLog
+import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.ui.enableDpadTabFocus
 import blbl.cat3399.databinding.FragmentMyTabsBinding
 import blbl.cat3399.ui.BackPressHandler
@@ -45,7 +46,7 @@ class MyTabsFragment : Fragment(), MyTabContentSwitchFocusHost, BackPressHandler
         val tabLayout = binding.tabLayout
         tabLayout.post {
             if (_binding == null) return@post
-            tabLayout.enableDpadTabFocus { position ->
+            tabLayout.enableDpadTabFocus(selectOnFocusProvider = { BiliClient.prefs.tabSwitchFollowsFocus }) { position ->
                 AppLog.d("My", "tab focus pos=$position t=${SystemClock.uptimeMillis()}")
             }
             val tabStrip = tabLayout.getChildAt(0) as? ViewGroup ?: return@post

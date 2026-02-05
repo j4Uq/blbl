@@ -145,7 +145,7 @@ class LiveFragment : Fragment(), LiveGridTabSwitchFocusHost, BackPressHandler, L
         val tabLayout = binding.tabLayout
         tabLayout.post {
             if (_binding == null) return@post
-            tabLayout.enableDpadTabFocus { position ->
+            tabLayout.enableDpadTabFocus(selectOnFocusProvider = { BiliClient.prefs.tabSwitchFollowsFocus }) { position ->
                 val title = list.getOrNull(position)?.title
                 AppLog.d("Live", "tab focus pos=$position title=$title t=${SystemClock.uptimeMillis()}")
             }

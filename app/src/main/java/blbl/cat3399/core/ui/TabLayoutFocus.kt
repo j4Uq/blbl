@@ -9,6 +9,13 @@ fun TabLayout.enableDpadTabFocus(
     selectOnFocus: Boolean = true,
     onTabFocused: ((position: Int) -> Unit)? = null,
 ) {
+    enableDpadTabFocus(selectOnFocusProvider = { selectOnFocus }, onTabFocused = onTabFocused)
+}
+
+fun TabLayout.enableDpadTabFocus(
+    selectOnFocusProvider: () -> Boolean,
+    onTabFocused: ((position: Int) -> Unit)? = null,
+) {
     val tabStrip = getChildAt(0) as? ViewGroup ?: return
     for (i in 0 until tabStrip.childCount) {
         val index = i
@@ -18,7 +25,7 @@ fun TabLayout.enableDpadTabFocus(
         tabView.stateListAnimator = AnimatorInflater.loadStateListAnimator(context, R.animator.blbl_focus_scale)
         tabView.setOnFocusChangeListener { _, hasFocus ->
             if (!hasFocus) return@setOnFocusChangeListener
-            if (selectOnFocus) getTabAt(index)?.select()
+            if (selectOnFocusProvider()) getTabAt(index)?.select()
             onTabFocused?.invoke(index)
         }
     }

@@ -263,6 +263,7 @@ class SettingsActivity : BaseActivity() {
                 SettingEntry("番剧/电视剧每行卡片数量", gridSpanText(prefs.pgcGridSpanCount), null),
                 SettingEntry("界面大小", sidebarSizeText(prefs.sidebarSize), null),
                 SettingEntry("以全屏模式运行", if (prefs.fullscreenEnabled) "开" else "关", null),
+                SettingEntry("tab跟随焦点切换", if (prefs.tabSwitchFollowsFocus) "开" else "关", null),
             )
 
 		            "播放设置" -> listOf(
@@ -364,6 +365,12 @@ class SettingsActivity : BaseActivity() {
                 prefs.fullscreenEnabled = !prefs.fullscreenEnabled
                 Immersive.apply(this, prefs.fullscreenEnabled)
                 Toast.makeText(this, "全屏：${if (prefs.fullscreenEnabled) "开" else "关"}", Toast.LENGTH_SHORT).show()
+                refreshSection(entry.title)
+            }
+
+            "tab跟随焦点切换" -> {
+                prefs.tabSwitchFollowsFocus = !prefs.tabSwitchFollowsFocus
+                Toast.makeText(this, "tab跟随焦点切换：${if (prefs.tabSwitchFollowsFocus) "开" else "关"}", Toast.LENGTH_SHORT).show()
                 refreshSection(entry.title)
             }
 
