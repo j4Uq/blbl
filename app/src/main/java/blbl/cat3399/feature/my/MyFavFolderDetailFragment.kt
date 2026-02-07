@@ -33,6 +33,7 @@ class MyFavFolderDetailFragment : Fragment(), RefreshKeyHandler {
     private val binding get() = _binding!!
 
     private lateinit var adapter: VideoCardAdapter
+    private var lastUiScaleFactor: Float? = null
 
     private val mediaId: Long by lazy { requireArguments().getLong(ARG_MEDIA_ID) }
     private val title: String by lazy { requireArguments().getString(ARG_TITLE).orEmpty() }
@@ -155,12 +156,17 @@ class MyFavFolderDetailFragment : Fragment(), RefreshKeyHandler {
             binding.swipeRefresh.isRefreshing = true
             resetAndLoad()
         }
+
+        lastUiScaleFactor = UiScale.factor(requireContext())
     }
 
     override fun onResume() {
         super.onResume()
+        val old = lastUiScaleFactor
+        val now = UiScale.factor(requireContext())
+        lastUiScaleFactor = now
         applyBackButtonSizing()
-        if (this::adapter.isInitialized) adapter.invalidateSizing()
+        if (this::adapter.isInitialized && old != null && old != now) adapter.invalidateSizing()
         (binding.recycler.layoutManager as? GridLayoutManager)?.spanCount = spanCountForWidth(resources)
     }
 

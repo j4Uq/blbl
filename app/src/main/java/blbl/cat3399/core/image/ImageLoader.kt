@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import android.graphics.drawable.ColorDrawable
 import android.widget.ImageView
 import androidx.collection.LruCache
+import blbl.cat3399.R
 import blbl.cat3399.core.log.AppLog
 import blbl.cat3399.core.net.BiliClient
 import kotlinx.coroutines.CoroutineScope
@@ -26,28 +27,51 @@ object ImageLoader {
     }
 
     fun loadInto(view: ImageView, url: String?) {
-        if (url.isNullOrBlank()) {
-            view.setImageDrawable(placeholder)
+        val normalized = url?.trim().takeIf { !it.isNullOrBlank() }
+
+        if (normalized == null) {
+            view.setTag(R.id.tag_image_loader_url, null)
+            inFlight.remove(view)?.cancel()
+            if (view.drawable !== placeholder) view.setImageDrawable(placeholder)
             return
         }
-        val cached = cache.get(url)
+
+        val lastUrl = view.getTag(R.id.tag_image_loader_url) as? String
+        if (lastUrl == normalized) {
+            // If we already have a non-placeholder image for the same URL, keep it to prevent
+            // flicker on rebind (e.g. switching tabs triggers notifyItemRangeChanged).
+            val drawable = view.drawable
+            if (drawable != null && drawable !== placeholder) {
+                inFlight.remove(view)?.cancel()
+                return
+            }
+            // If the same URL is already loading, keep the current placeholder.
+            val inFlightJob = inFlight[view]
+            if (inFlightJob != null && inFlightJob.isActive) return
+        } else {
+            view.setTag(R.id.tag_image_loader_url, normalized)
+            inFlight.remove(view)?.cancel()
+        }
+
+        val cached = cache.get(normalized)
         if (cached != null) {
             view.setImageBitmap(cached)
             return
         }
 
-        inFlight[view]?.cancel()
-        view.setImageDrawable(placeholder)
+        if (view.drawable !== placeholder) view.setImageDrawable(placeholder)
         val job = scope.launch {
             try {
-                val bytes = withContext(Dispatchers.IO) { BiliClient.getBytes(url) }
+                val bytes = withContext(Dispatchers.IO) { BiliClient.getBytes(normalized) }
                 val bmp = withContext(Dispatchers.Default) { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }
                 if (bmp != null) {
-                    cache.put(url, bmp)
-                    view.setImageBitmap(bmp)
+                    cache.put(normalized, bmp)
+                    if ((view.getTag(R.id.tag_image_loader_url) as? String) == normalized) {
+                        view.setImageBitmap(bmp)
+                    }
                 }
             } catch (t: Throwable) {
-                AppLog.w(TAG, "load failed url=${url.take(64)}", t)
+                AppLog.w(TAG, "load failed url=${normalized.take(64)}", t)
             }
         }
         inFlight[view] = job

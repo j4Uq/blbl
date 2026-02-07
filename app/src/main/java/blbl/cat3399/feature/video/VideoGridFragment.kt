@@ -17,6 +17,7 @@ import blbl.cat3399.core.log.AppLog
 import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.ui.DpadGridController
 import blbl.cat3399.core.ui.TabSwitchFocusTarget
+import blbl.cat3399.core.ui.UiScale
 import blbl.cat3399.databinding.FragmentVideoGridBinding
 import blbl.cat3399.feature.following.openUpDetailFromVideoCard
 import blbl.cat3399.feature.player.PlayerPlaylistItem
@@ -31,6 +32,7 @@ class VideoGridFragment : Fragment(), RefreshKeyHandler, TabSwitchFocusTarget {
     private val binding get() = _binding!!
 
     private lateinit var adapter: VideoCardAdapter
+    private var lastUiScaleFactor: Float? = null
     private var preDrawListener: android.view.ViewTreeObserver.OnPreDrawListener? = null
     private var firstDrawLogged: Boolean = false
     private var initialLoadTriggered: Boolean = false
@@ -161,6 +163,7 @@ class VideoGridFragment : Fragment(), RefreshKeyHandler, TabSwitchFocusTarget {
             ).also { it.install() }
 
         binding.swipeRefresh.setOnRefreshListener { resetAndLoad() }
+        lastUiScaleFactor = UiScale.factor(requireContext())
 
         if (preDrawListener == null) {
             preDrawListener =
@@ -181,7 +184,12 @@ class VideoGridFragment : Fragment(), RefreshKeyHandler, TabSwitchFocusTarget {
     override fun onResume() {
         super.onResume()
         AppLog.d("VideoGrid", "onResume source=$source rid=$rid t=${SystemClock.uptimeMillis()}")
-        if (this::adapter.isInitialized) adapter.invalidateSizing()
+        if (this::adapter.isInitialized) {
+            val old = lastUiScaleFactor
+            val now = UiScale.factor(requireContext())
+            lastUiScaleFactor = now
+            if (old != null && old != now) adapter.invalidateSizing()
+        }
         (binding.recycler.layoutManager as? GridLayoutManager)?.spanCount = spanCountForWidth()
         maybeTriggerInitialLoad()
         maybeConsumePendingFocusFirstCard()

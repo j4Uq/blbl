@@ -25,6 +25,7 @@ class LiveGridFragment : Fragment(), LivePageFocusTarget, RefreshKeyHandler {
     private val binding get() = _binding!!
 
     private lateinit var adapter: LiveRoomAdapter
+    private var lastUiScaleFactor: Float? = null
 
     private var initialLoadTriggered: Boolean = false
     private var lastSpanCountContentWidthPx: Int = -1
@@ -134,11 +135,17 @@ class LiveGridFragment : Fragment(), LivePageFocusTarget, RefreshKeyHandler {
             ).also { it.install() }
 
         binding.swipeRefresh.setOnRefreshListener { resetAndLoad() }
+        lastUiScaleFactor = UiScale.factor(requireContext())
     }
 
     override fun onResume() {
         super.onResume()
-        if (this::adapter.isInitialized) adapter.invalidateSizing()
+        if (this::adapter.isInitialized) {
+            val old = lastUiScaleFactor
+            val now = UiScale.factor(requireContext())
+            lastUiScaleFactor = now
+            if (old != null && old != now) adapter.invalidateSizing()
+        }
         updateRecyclerSpanCountIfNeeded(force = true)
         maybeTriggerInitialLoad()
         restoreFocusIfNeeded()
