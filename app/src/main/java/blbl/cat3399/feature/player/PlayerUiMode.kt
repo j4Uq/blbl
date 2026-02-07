@@ -134,9 +134,11 @@ object PlayerOsdSizing {
  * This file exists to reduce the size/complexity of PlayerActivity/LivePlayerActivity.
  */
 internal object PlayerUiMode {
-    fun applyVideo(activity: Activity, binding: ActivityPlayerBinding) {
+    fun applyVideo(activity: Activity, binding: ActivityPlayerBinding, fixedAutoScale: Float? = null) {
         val density = activity.resources.displayMetrics.density
-        val autoScale = PlayerContentAutoScale.factor(binding.playerView, density)
+        val autoScale =
+            fixedAutoScale?.takeIf { it.isFinite() && it > 0f }
+                ?: PlayerContentAutoScale.factor(binding.playerView, density)
 
         // Use UiScale for device + user preference; additionally fine-tune by actual 16:9 content size.
         val uiScale =
@@ -381,9 +383,11 @@ internal object PlayerUiMode {
         }
     }
 
-    fun applyLive(activity: Activity, binding: ActivityPlayerBinding) {
+    fun applyLive(activity: Activity, binding: ActivityPlayerBinding, fixedAutoScale: Float? = null) {
         val density = activity.resources.displayMetrics.density
-        val autoScale = PlayerContentAutoScale.factor(binding.playerView, density)
+        val autoScale =
+            fixedAutoScale?.takeIf { it.isFinite() && it > 0f }
+                ?: PlayerContentAutoScale.factor(binding.playerView, density)
 
         val uiScale =
             (UiScale.factor(activity, BiliClient.prefs.sidebarSize) * autoScale)

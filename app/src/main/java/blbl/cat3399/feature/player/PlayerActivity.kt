@@ -132,6 +132,9 @@ class PlayerActivity : BaseActivity() {
     internal var transientSeekOsdVisible: Boolean = false
     internal var bottomBarFullConstraints: ConstraintSet? = null
     internal var bottomBarSeekConstraints: ConstraintSet? = null
+    private var fixedAutoScale: Float? = null
+    private var fixedAutoScaleWindowWidth: Int = -1
+    private var fixedAutoScaleWindowHeight: Int = -1
 
     internal enum class OsdMode {
         Hidden,
@@ -316,18 +319,22 @@ class PlayerActivity : BaseActivity() {
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
         Immersive.apply(this, BiliClient.prefs.fullscreenEnabled)
-        PlayerUiMode.applyVideo(this, binding)
+        recomputeFixedAutoScaleIfWindowChanged(force = false)
+        PlayerUiMode.applyVideo(this, binding, fixedAutoScale = fixedAutoScale)
         binding.topBar.setBackgroundResource(R.drawable.bg_player_top_scrim_strong)
         ensureBottomBarConstraintSets()
 
-        // Re-apply after layout changes so content-based auto-scale can take effect.
+        // Re-apply only when real window size changes; keep panel open/close from affecting OSD scale.
         binding.playerView.addOnLayoutChangeListener { _, l, t, r, b, ol, ot, or, ob ->
             if (exitCleanupRequested || isFinishing) return@addOnLayoutChangeListener
             val w = r - l
             val h = b - t
             val ow = or - ol
             val oh = ob - ot
-            if (w != ow || h != oh) PlayerUiMode.applyVideo(this, binding)
+            if (w <= 0 || h <= 0 || (w == ow && h == oh)) return@addOnLayoutChangeListener
+            if (recomputeFixedAutoScaleIfWindowChanged(force = false)) {
+                PlayerUiMode.applyVideo(this, binding, fixedAutoScale = fixedAutoScale)
+            }
         }
 
         binding.topBar.visibility = View.GONE
@@ -801,10 +808,26 @@ class PlayerActivity : BaseActivity() {
     override fun onResume() {
         super.onResume()
         PlayerOsdSizing.applyTheme(this)
-        PlayerUiMode.applyVideo(this, binding)
+        recomputeFixedAutoScaleIfWindowChanged(force = false)
+        PlayerUiMode.applyVideo(this, binding, fixedAutoScale = fixedAutoScale)
         applyActionButtonsVisibility()
         updatePersistentBottomProgressBarVisibility()
         (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
+    }
+
+    private fun recomputeFixedAutoScaleIfWindowChanged(force: Boolean): Boolean {
+        val windowWidth = binding.root.width
+        val windowHeight = binding.root.height
+        val playerWidth = binding.playerView.width
+        val playerHeight = binding.playerView.height
+        if (windowWidth <= 0 || windowHeight <= 0 || playerWidth <= 0 || playerHeight <= 0) return false
+        if (!force && fixedAutoScale != null && windowWidth == fixedAutoScaleWindowWidth && windowHeight == fixedAutoScaleWindowHeight) {
+            return false
+        }
+        fixedAutoScale = PlayerContentAutoScale.factor(binding.playerView, resources.displayMetrics.density)
+        fixedAutoScaleWindowWidth = windowWidth
+        fixedAutoScaleWindowHeight = windowHeight
+        return true
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {

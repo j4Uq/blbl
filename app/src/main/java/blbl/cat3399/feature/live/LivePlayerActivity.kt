@@ -53,6 +53,9 @@ class LivePlayerActivity : BaseActivity() {
     private var autoFailoverSwitchCount: Int = 0
     private var autoFailoverLastSwitchAtMs: Long = 0L
     private var autoFailoverInFlight: Boolean = false
+    private var fixedAutoScale: Float? = null
+    private var fixedAutoScaleWindowWidth: Int = -1
+    private var fixedAutoScaleWindowHeight: Int = -1
 
     private val doubleBackToExit by lazy {
         DoubleBackToExitHandler(context = this, windowMs = BACK_DOUBLE_PRESS_WINDOW_MS) {
@@ -81,16 +84,20 @@ class LivePlayerActivity : BaseActivity() {
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
         Immersive.apply(this, BiliClient.prefs.fullscreenEnabled)
-        PlayerUiMode.applyLive(this, binding)
+        recomputeFixedAutoScaleIfWindowChanged(force = false)
+        PlayerUiMode.applyLive(this, binding, fixedAutoScale = fixedAutoScale)
 
-        // Re-apply after layout changes so content-based auto-scale can take effect.
+        // Re-apply only when real window size changes; keep panel open/close from affecting OSD scale.
         binding.playerView.addOnLayoutChangeListener { _, l, t, r, b, ol, ot, or, ob ->
             if (isFinishing) return@addOnLayoutChangeListener
             val w = r - l
             val h = b - t
             val ow = or - ol
             val oh = ob - ot
-            if (w != ow || h != oh) PlayerUiMode.applyLive(this, binding)
+            if (w <= 0 || h <= 0 || (w == ow && h == oh)) return@addOnLayoutChangeListener
+            if (recomputeFixedAutoScaleIfWindowChanged(force = false)) {
+                PlayerUiMode.applyLive(this, binding, fixedAutoScale = fixedAutoScale)
+            }
         }
 
         roomId = intent.getLongExtra(EXTRA_ROOM_ID, 0L)
@@ -187,7 +194,23 @@ class LivePlayerActivity : BaseActivity() {
     override fun onResume() {
         super.onResume()
         PlayerOsdSizing.applyTheme(this)
-        PlayerUiMode.applyLive(this, binding)
+        recomputeFixedAutoScaleIfWindowChanged(force = false)
+        PlayerUiMode.applyLive(this, binding, fixedAutoScale = fixedAutoScale)
+    }
+
+    private fun recomputeFixedAutoScaleIfWindowChanged(force: Boolean): Boolean {
+        val windowWidth = binding.root.width
+        val windowHeight = binding.root.height
+        val playerWidth = binding.playerView.width
+        val playerHeight = binding.playerView.height
+        if (windowWidth <= 0 || windowHeight <= 0 || playerWidth <= 0 || playerHeight <= 0) return false
+        if (!force && fixedAutoScale != null && windowWidth == fixedAutoScaleWindowWidth && windowHeight == fixedAutoScaleWindowHeight) {
+            return false
+        }
+        fixedAutoScale = PlayerContentAutoScale.factor(binding.playerView, resources.displayMetrics.density)
+        fixedAutoScaleWindowWidth = windowWidth
+        fixedAutoScaleWindowHeight = windowHeight
+        return true
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
