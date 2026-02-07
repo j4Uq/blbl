@@ -1,5 +1,6 @@
 package blbl.cat3399.feature.player
 
+import android.util.TypedValue
 import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.SubtitleView
 
@@ -18,5 +19,14 @@ internal fun PlayerActivity.configureSubtitleView() {
             /* typeface= */ null,
         ),
     )
+    applySubtitleTextSize()
 }
 
+internal fun PlayerActivity.applySubtitleTextSize() {
+    val subtitleView = binding.playerView.findViewById<SubtitleView>(androidx.media3.ui.R.id.exo_subtitles) ?: return
+    val sizeSp =
+        session.subtitleTextSizeSp
+            .let { if (it.isFinite()) it else 26f }
+            .coerceIn(10f, 60f)
+    subtitleView.setFixedTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp)
+}

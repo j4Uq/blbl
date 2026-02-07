@@ -5,6 +5,7 @@ import androidx.lifecycle.lifecycleScope
 import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.ui.SingleChoiceDialog
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 internal fun PlayerActivity.pickSubtitleItem(items: List<SubtitleItem>): SubtitleItem? {
     if (items.isEmpty()) return null
@@ -85,3 +86,23 @@ internal fun PlayerActivity.showSubtitleLangDialog() {
     }
 }
 
+internal fun PlayerActivity.showSubtitleTextSizeDialog() {
+    val options = (10..60 step 2).toList()
+    val items = options.map { it.toString() }.toTypedArray()
+    val current =
+        options.indices.minByOrNull { abs(options[it].toFloat() - session.subtitleTextSizeSp) }
+            ?: options.indexOf(26).takeIf { it >= 0 }
+            ?: 0
+    SingleChoiceDialog.show(
+        context = this,
+        title = "字幕字号(sp)",
+        items = items.toList(),
+        checkedIndex = current,
+        negativeText = "取消",
+    ) { which, _ ->
+        val v = (options.getOrNull(which) ?: session.subtitleTextSizeSp.toInt()).toFloat()
+        session = session.copy(subtitleTextSizeSp = v)
+        applySubtitleTextSize()
+        (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
+    }
+}

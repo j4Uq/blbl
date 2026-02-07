@@ -421,6 +421,7 @@ class PlayerActivity : BaseActivity() {
             playbackModeOverride = null,
             subtitleEnabled = prefs.subtitleEnabledDefault,
             subtitleLangOverride = null,
+            subtitleTextSizeSp = prefs.subtitleTextSizeSp,
             danmaku = DanmakuSessionSettings(
                 enabled = prefs.danmakuEnabled,
                 opacity = prefs.danmakuOpacity,
@@ -560,6 +561,7 @@ class PlayerActivity : BaseActivity() {
                 "播放速度" -> showSpeedDialog()
                 "播放模式" -> showPlaybackModeDialog()
                 "字幕语言" -> showSubtitleLangDialog()
+                "字幕字号" -> showSubtitleTextSizeDialog()
                 "弹幕透明度" -> showDanmakuOpacityDialog()
                 "弹幕字号" -> showDanmakuTextSizeDialog()
                 "弹幕速度" -> showDanmakuSpeedDialog()
@@ -3518,6 +3520,7 @@ class PlayerActivity : BaseActivity() {
                 PlayerSettingsAdapter.SettingItem("播放速度", String.format(Locale.US, "%.2fx", session.playbackSpeed)),
                 PlayerSettingsAdapter.SettingItem("播放模式", playbackModeSubtitle()),
                 PlayerSettingsAdapter.SettingItem("字幕语言", subtitleLangSubtitle()),
+                PlayerSettingsAdapter.SettingItem("字幕字号", session.subtitleTextSizeSp.toInt().toString()),
                 PlayerSettingsAdapter.SettingItem("弹幕透明度", String.format(Locale.US, "%.2f", session.danmaku.opacity)),
                 PlayerSettingsAdapter.SettingItem("弹幕字号", session.danmaku.textSizeSp.toInt().toString()),
                 PlayerSettingsAdapter.SettingItem("弹幕速度", session.danmaku.speedLevel.toString()),
@@ -4211,6 +4214,7 @@ class PlayerActivity : BaseActivity() {
         val playbackModeOverride: String?,
         val subtitleEnabled: Boolean,
         val subtitleLangOverride: String?,
+        val subtitleTextSizeSp: Float,
         val danmaku: DanmakuSessionSettings,
         val debugEnabled: Boolean,
     )

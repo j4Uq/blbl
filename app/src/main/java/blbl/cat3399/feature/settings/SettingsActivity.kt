@@ -266,19 +266,20 @@ class SettingsActivity : BaseActivity() {
                 SettingEntry("tab跟随焦点切换", if (prefs.tabSwitchFollowsFocus) "开" else "关", null),
             )
 
-		            "播放设置" -> listOf(
-		                SettingEntry("默认画质", qnText(prefs.playerPreferredQn), null),
-		                SettingEntry("默认画质（竖屏）", qnText(prefs.playerPreferredQnPortrait), null),
-		                SettingEntry("默认音轨", audioText(prefs.playerPreferredAudioId), null),
-		                SettingEntry("CDN线路", cdnText(prefs.playerCdnPreference), null),
-		                SettingEntry("默认播放速度", String.format(Locale.US, "%.2fx", prefs.playerSpeed), null),
-		                SettingEntry("长按快进倍率", String.format(Locale.US, "%.2fx", prefs.playerHoldSeekSpeed), null),
+	            "播放设置" -> listOf(
+	                SettingEntry("默认画质", qnText(prefs.playerPreferredQn), null),
+	                SettingEntry("默认画质（竖屏）", qnText(prefs.playerPreferredQnPortrait), null),
+	                SettingEntry("默认音轨", audioText(prefs.playerPreferredAudioId), null),
+	                SettingEntry("CDN线路", cdnText(prefs.playerCdnPreference), null),
+	                SettingEntry("默认播放速度", String.format(Locale.US, "%.2fx", prefs.playerSpeed), null),
+	                SettingEntry("长按快进倍率", String.format(Locale.US, "%.2fx", prefs.playerHoldSeekSpeed), null),
 	                SettingEntry("长按快进模式", holdSeekModeText(prefs.playerHoldSeekMode), null),
 	                SettingEntry("自动跳到上次播放位置", if (prefs.playerAutoResumeEnabled) "开" else "关", null),
 	                SettingEntry("自动跳过片段（空降助手）", if (prefs.playerAutoSkipSegmentsEnabled) "开" else "关", null),
 	                SettingEntry("播放前打开详情页", if (prefs.playerOpenDetailBeforePlay) "开" else "关", null),
 	                SettingEntry("播放模式", playbackModeText(prefs.playerPlaybackMode), null),
 	                SettingEntry("字幕语言", subtitleLangText(prefs.subtitlePreferredLang), null),
+	                SettingEntry("字幕字体大小", prefs.subtitleTextSizeSp.toInt().toString(), null),
 	                SettingEntry("默认开启字幕", if (prefs.subtitleEnabledDefault) "开" else "关", null),
 	                SettingEntry("视频编码", prefs.playerPreferredCodec, null),
                 SettingEntry("点赞投币收藏是否显示", playerActionButtonsText(prefs.playerActionButtons), null),
@@ -462,6 +463,18 @@ class SettingsActivity : BaseActivity() {
                 prefs.subtitleEnabledDefault = !prefs.subtitleEnabledDefault
                 Toast.makeText(this, "默认字幕：${if (prefs.subtitleEnabledDefault) "开" else "关"}", Toast.LENGTH_SHORT).show()
                 refreshSection(entry.title)
+            }
+
+            "字幕字体大小" -> {
+                val options = (10..60 step 2).toList()
+                showChoiceDialog(
+                    title = "字幕字体大小(sp)",
+                    items = options.map { it.toString() },
+                    current = prefs.subtitleTextSizeSp.toInt().toString(),
+                ) { selected ->
+                    prefs.subtitleTextSizeSp = (selected.toIntOrNull() ?: 26).toFloat().coerceIn(10f, 60f)
+                    refreshSection(entry.title)
+                }
             }
 
             "弹幕透明度" -> {

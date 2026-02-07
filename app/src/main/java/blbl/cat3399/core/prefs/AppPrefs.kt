@@ -140,6 +140,17 @@ class AppPrefs(context: Context) {
         get() = prefs.getBoolean(KEY_SUBTITLE_ENABLED_DEFAULT, false)
         set(value) = prefs.edit().putBoolean(KEY_SUBTITLE_ENABLED_DEFAULT, value).apply()
 
+    var subtitleTextSizeSp: Float
+        get() {
+            val v = prefs.getFloat(KEY_SUBTITLE_TEXT_SIZE_SP, 26f)
+            if (!v.isFinite()) return 26f
+            return v.coerceIn(10f, 60f)
+        }
+        set(value) {
+            val v = if (value.isFinite()) value.coerceIn(10f, 60f) else 26f
+            prefs.edit().putFloat(KEY_SUBTITLE_TEXT_SIZE_SP, v).apply()
+        }
+
     var playerSpeed: Float
         get() = prefs.getFloat(KEY_PLAYER_SPEED, 1.0f)
         set(value) = prefs.edit().putFloat(KEY_PLAYER_SPEED, value).apply()
@@ -346,6 +357,7 @@ class AppPrefs(context: Context) {
         private const val KEY_PLAYER_CDN_PREFERENCE = "player_cdn_preference"
         private const val KEY_SUBTITLE_LANG = "subtitle_lang"
         private const val KEY_SUBTITLE_ENABLED_DEFAULT = "subtitle_enabled_default"
+        private const val KEY_SUBTITLE_TEXT_SIZE_SP = "subtitle_text_size_sp"
         private const val KEY_PLAYER_SPEED = "player_speed"
         private const val KEY_PLAYER_HOLD_SEEK_SPEED = "player_hold_seek_speed"
         private const val KEY_PLAYER_HOLD_SEEK_MODE = "player_hold_seek_mode"
