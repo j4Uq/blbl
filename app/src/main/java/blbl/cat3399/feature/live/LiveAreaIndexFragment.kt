@@ -15,6 +15,7 @@ import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.ui.DpadGridController
 import blbl.cat3399.databinding.FragmentLiveGridBinding
 import blbl.cat3399.ui.RefreshKeyHandler
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 class LiveAreaIndexFragment : Fragment(), LivePageFocusTarget, LivePageReturnFocusTarget, RefreshKeyHandler {
@@ -142,6 +143,7 @@ class LiveAreaIndexFragment : Fragment(), LivePageFocusTarget, LivePageReturnFoc
                     maybeConsumePendingFocusFirstCard()
                 }
             } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 AppLog.e("LiveAreaIndex", "load failed pid=$parentAreaId title=$parentTitle", t)
                 context?.let { Toast.makeText(it, "加载失败，可查看 Logcat(标签 BLBL)", Toast.LENGTH_SHORT).show() }
             } finally {

@@ -14,6 +14,7 @@ import blbl.cat3399.core.log.AppLog
 import blbl.cat3399.core.ui.DpadGridController
 import blbl.cat3399.databinding.FragmentVideoGridBinding
 import blbl.cat3399.ui.RefreshKeyHandler
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 class MyFavFoldersFragment : Fragment(), MyTabSwitchFocusTarget, RefreshKeyHandler {
@@ -165,6 +166,7 @@ class MyFavFoldersFragment : Fragment(), MyTabSwitchFocusTarget, RefreshKeyHandl
                 }
                 restoreFocusIfNeeded()
             } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 AppLog.e("MyFav", "load failed", t)
                 context?.let { Toast.makeText(it, "加载失败，可查看 Logcat(标签 BLBL)", Toast.LENGTH_SHORT).show() }
             } finally {

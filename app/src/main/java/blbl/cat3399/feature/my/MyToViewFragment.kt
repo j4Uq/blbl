@@ -23,6 +23,7 @@ import blbl.cat3399.feature.player.PlayerPlaylistStore
 import blbl.cat3399.feature.video.VideoDetailActivity
 import blbl.cat3399.feature.video.VideoCardAdapter
 import blbl.cat3399.ui.RefreshKeyHandler
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 class MyToViewFragment : Fragment(), MyTabSwitchFocusTarget, RefreshKeyHandler {
@@ -213,6 +214,7 @@ class MyToViewFragment : Fragment(), MyTabSwitchFocusTarget, RefreshKeyHandler {
                     dpadGridController?.consumePendingFocusAfterLoadMore()
                 }
             } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 AppLog.e("MyToView", "load failed", t)
                 context?.let { Toast.makeText(it, "加载失败，可查看 Logcat(标签 BLBL)", Toast.LENGTH_SHORT).show() }
             } finally {

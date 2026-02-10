@@ -20,6 +20,7 @@ import blbl.cat3399.core.ui.Immersive
 import blbl.cat3399.core.ui.UiScale
 import blbl.cat3399.databinding.ActivityFollowingListBinding
 import blbl.cat3399.feature.login.QrLoginActivity
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -249,6 +250,7 @@ class FollowingListActivity : BaseActivity() {
                 endReached = !res.hasMore
                 binding.recycler.post { dpadGridController?.consumePendingFocusAfterLoadMore() }
             } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 AppLog.e("FollowingList", "load failed page=$currentPage", t)
                 Toast.makeText(this@FollowingListActivity, "加载失败，可查看 Logcat(标签 BLBL)", Toast.LENGTH_SHORT).show()
             } finally {

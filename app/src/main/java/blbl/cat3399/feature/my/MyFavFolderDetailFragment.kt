@@ -25,6 +25,7 @@ import blbl.cat3399.feature.player.PlayerPlaylistStore
 import blbl.cat3399.feature.video.VideoDetailActivity
 import blbl.cat3399.feature.video.VideoCardAdapter
 import blbl.cat3399.ui.RefreshKeyHandler
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -229,6 +230,7 @@ class MyFavFolderDetailFragment : Fragment(), RefreshKeyHandler {
                 if (!res.hasMore || filtered.isEmpty()) endReached = true
                 page++
             } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 AppLog.e("MyFavDetail", "load failed mediaId=$mediaId", t)
                 context?.let { Toast.makeText(it, "加载失败，可查看 Logcat(标签 BLBL)", Toast.LENGTH_SHORT).show() }
             } finally {

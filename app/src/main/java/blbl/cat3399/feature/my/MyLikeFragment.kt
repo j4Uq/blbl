@@ -24,6 +24,7 @@ import blbl.cat3399.feature.player.PlayerPlaylistStore
 import blbl.cat3399.feature.video.VideoDetailActivity
 import blbl.cat3399.feature.video.VideoCardAdapter
 import blbl.cat3399.ui.RefreshKeyHandler
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 class MyLikeFragment : Fragment(), MyTabSwitchFocusTarget, RefreshKeyHandler {
@@ -217,6 +218,7 @@ class MyLikeFragment : Fragment(), MyTabSwitchFocusTarget, RefreshKeyHandler {
                     dpadGridController?.consumePendingFocusAfterLoadMore()
                 }
             } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 AppLog.e("MyLike", "load failed", t)
                 val isPrivate = (t as? BiliApiException)?.apiCode == 53013
                 if (isPrivate && token == requestToken) adapter.submit(emptyList())

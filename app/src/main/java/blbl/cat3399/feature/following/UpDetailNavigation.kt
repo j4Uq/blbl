@@ -19,7 +19,7 @@ fun Fragment.openUpDetailFromVideoCard(card: VideoCard) {
 
     val safeAid = card.aid?.takeIf { it > 0L }
     if (card.bvid.isBlank() && safeAid == null) {
-        Toast.makeText(requireContext(), "未获取到 UP 主信息", Toast.LENGTH_SHORT).show()
+        context?.let { Toast.makeText(it, "未获取到 UP 主信息", Toast.LENGTH_SHORT).show() }
         return
     }
 
@@ -34,14 +34,14 @@ fun Fragment.openUpDetailFromVideoCard(card: VideoCard) {
             val owner = json.optJSONObject("data")?.optJSONObject("owner")
             val viewMid = owner?.optLong("mid") ?: 0L
             if (viewMid <= 0L) {
-                Toast.makeText(requireContext(), "未获取到 UP 主信息", Toast.LENGTH_SHORT).show()
+                context?.let { Toast.makeText(it, "未获取到 UP 主信息", Toast.LENGTH_SHORT).show() }
                 return@launch
             }
             startUpDetail(mid = viewMid, card = card)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Toast.makeText(requireContext(), "未获取到 UP 主信息", Toast.LENGTH_SHORT).show()
+            context?.let { Toast.makeText(it, "未获取到 UP 主信息", Toast.LENGTH_SHORT).show() }
         }
     }
 }

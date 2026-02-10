@@ -16,6 +16,7 @@ import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.ui.DpadGridController
 import blbl.cat3399.databinding.FragmentVideoGridBinding
 import blbl.cat3399.ui.RefreshKeyHandler
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 class MyBangumiFollowFragment : Fragment(), MyTabSwitchFocusTarget, RefreshKeyHandler {
@@ -217,6 +218,7 @@ class MyBangumiFollowFragment : Fragment(), MyTabSwitchFocusTarget, RefreshKeyHa
                 page++
                 if (res.pages > 0 && page > res.pages) endReached = true
             } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 AppLog.e("MyBangumi", "load failed type=$type", t)
                 context?.let { Toast.makeText(it, "加载失败，可查看 Logcat(标签 BLBL)", Toast.LENGTH_SHORT).show() }
             } finally {

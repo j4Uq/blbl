@@ -29,6 +29,7 @@ import blbl.cat3399.feature.player.PlayerPlaylistItem
 import blbl.cat3399.feature.player.PlayerPlaylistStore
 import blbl.cat3399.feature.video.VideoDetailActivity
 import blbl.cat3399.feature.video.VideoCardAdapter
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -283,6 +284,7 @@ class UpDetailActivity : BaseActivity() {
                 isFollowed = info.isFollowed
                 updateFollowUi()
             } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 AppLog.w("UpDetail", "loadHeader failed mid=$mid", t)
                 if (!loadedInitialInfo) {
                     binding.tvName.text = binding.tvName.text.takeIf { it.isNotBlank() } ?: "加载失败"
@@ -317,6 +319,7 @@ class UpDetailActivity : BaseActivity() {
                     dpadGridController?.consumePendingFocusAfterLoadMore()
                 }
             } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 AppLog.e("UpDetail", "loadFeed failed mid=$mid page=$targetPage", t)
                 Toast.makeText(this@UpDetailActivity, "加载失败，可查看 Logcat(标签 BLBL)", Toast.LENGTH_SHORT).show()
             } finally {
@@ -345,6 +348,7 @@ class UpDetailActivity : BaseActivity() {
                 isFollowed = wantFollow
                 Toast.makeText(this@UpDetailActivity, if (wantFollow) "已关注" else "已取关", Toast.LENGTH_SHORT).show()
             } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 AppLog.w("UpDetail", "modifyRelation failed mid=$mid wantFollow=$wantFollow", t)
                 val raw =
                     (t as? blbl.cat3399.core.api.BiliApiException)?.apiMessage?.takeIf { it.isNotBlank() }

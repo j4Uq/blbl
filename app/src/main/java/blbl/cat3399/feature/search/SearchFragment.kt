@@ -47,6 +47,7 @@ import blbl.cat3399.feature.video.VideoCardAdapter
 import blbl.cat3399.ui.BackPressHandler
 import blbl.cat3399.ui.RefreshKeyHandler
 import com.google.android.material.card.MaterialCardView
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -1115,6 +1116,7 @@ class SearchFragment : Fragment(), BackPressHandler, RefreshKeyHandler {
                     resultsGridController?.consumePendingFocusAfterLoadMore()
                 }
             } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 AppLog.e("Search", "load failed tab=${tab.name} page=${state.page}", t)
                 context?.let { Toast.makeText(it, "搜索失败，可查看 Logcat(标签 BLBL)", Toast.LENGTH_SHORT).show() }
             } finally {

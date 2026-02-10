@@ -27,6 +27,7 @@ import blbl.cat3399.feature.player.PlayerPlaylistStore
 import blbl.cat3399.feature.video.VideoDetailActivity
 import blbl.cat3399.feature.video.VideoCardAdapter
 import blbl.cat3399.ui.RefreshKeyHandler
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -242,7 +243,8 @@ class DynamicFragment : Fragment(), RefreshKeyHandler {
                 val isLogin = data?.optBoolean("isLogin") ?: false
                 AppLog.i("Dynamic", "nav isLogin=$isLogin mid=$mid")
                 if (!isLogin || mid <= 0) {
-                    Toast.makeText(requireContext(), "登录态失效，请重新登录", Toast.LENGTH_SHORT).show()
+                    _binding?.swipeRefresh?.isRefreshing = false
+                    context?.let { Toast.makeText(it, "登录态失效，请重新登录", Toast.LENGTH_SHORT).show() }
                     return@launch
                 }
 
@@ -250,9 +252,10 @@ class DynamicFragment : Fragment(), RefreshKeyHandler {
                 resetAndLoadFollowings()
                 if (resetFeed) resetAndLoadFeed() else loadMoreFeed()
             } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 AppLog.e("Dynamic", "load failed", t)
                 _binding?.swipeRefresh?.isRefreshing = false
-                Toast.makeText(requireContext(), "加载失败，可查看 Logcat(标签 BLBL)", Toast.LENGTH_SHORT).show()
+                context?.let { Toast.makeText(it, "加载失败，可查看 Logcat(标签 BLBL)", Toast.LENGTH_SHORT).show() }
             } finally {
                 if (!resetFeed) _binding?.swipeRefresh?.isRefreshing = false
             }
@@ -283,7 +286,7 @@ class DynamicFragment : Fragment(), RefreshKeyHandler {
             val uiItems = filtered.map { f -> FollowingAdapter.FollowingUi(f.mid, f.name, f.avatarUrl) }
             if (uiItems.isEmpty()) {
                 followEndReached = true
-                Toast.makeText(requireContext(), "暂无关注", Toast.LENGTH_SHORT).show()
+                context?.let { Toast.makeText(it, "暂无关注", Toast.LENGTH_SHORT).show() }
                 return
             }
 
@@ -295,8 +298,9 @@ class DynamicFragment : Fragment(), RefreshKeyHandler {
             followPage += 1
             followEndReached = !res.hasMore
         } catch (t: Throwable) {
+            if (t is CancellationException) throw t
             AppLog.e("Dynamic", "load followings failed page=$followPage", t)
-            Toast.makeText(requireContext(), "关注列表加载失败，可查看 Logcat(标签 BLBL)", Toast.LENGTH_SHORT).show()
+            context?.let { Toast.makeText(it, "关注列表加载失败，可查看 Logcat(标签 BLBL)", Toast.LENGTH_SHORT).show() }
         } finally {
             if (token == followRequestToken) {
                 followIsLoadingMore = false
@@ -325,6 +329,7 @@ class DynamicFragment : Fragment(), RefreshKeyHandler {
                 followEndReached = !res.hasMore
                 _binding?.recyclerFollowing?.post { followingListController?.consumePendingFocusAfterLoadMore() }
             } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 AppLog.e("Dynamic", "load followings failed page=$targetPage", t)
             } finally {
                 if (token == followRequestToken) followIsLoadingMore = false
@@ -380,8 +385,9 @@ class DynamicFragment : Fragment(), RefreshKeyHandler {
                 }
                 _binding?.recyclerDynamic?.post { dynamicGridController?.consumePendingFocusAfterLoadMore() }
             } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 AppLog.e("Dynamic", "load feed failed mid=$selectedMid", t)
-                Toast.makeText(requireContext(), "加载失败，可查看 Logcat(标签 BLBL)", Toast.LENGTH_SHORT).show()
+                context?.let { Toast.makeText(it, "加载失败，可查看 Logcat(标签 BLBL)", Toast.LENGTH_SHORT).show() }
             } finally {
                 if (token == requestToken) _binding?.swipeRefresh?.isRefreshing = false
                 isLoadingMore = false

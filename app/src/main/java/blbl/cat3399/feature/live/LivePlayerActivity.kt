@@ -34,6 +34,7 @@ import blbl.cat3399.feature.player.PlayerSettingsAdapter
 import blbl.cat3399.feature.player.PlayerUiMode
 import blbl.cat3399.feature.player.danmaku.DanmakuSessionSettings
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -621,6 +622,7 @@ class LivePlayerActivity : BaseActivity() {
 
             if (initial) connectDanmaku()
         } catch (t: Throwable) {
+            if (t is CancellationException) throw t
             AppLog.e("LivePlayer", "loadAndPlay failed", t)
             val e = t as? BiliApiException
             val msg = e?.let { "B 站返回：${it.apiCode} / ${it.apiMessage}" } ?: (t.message ?: "未知错误")
