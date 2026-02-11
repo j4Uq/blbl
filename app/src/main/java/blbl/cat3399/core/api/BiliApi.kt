@@ -2319,6 +2319,9 @@ object BiliApi {
             val title = obj.optString("title", "")
             val cover = obj.optString("pic", obj.optString("cover", "")).trim()
             val durationText = obj.optString("length", obj.optString("duration", "0:00"))
+            val isChargingArc =
+                obj.optBoolean("is_charging_arc", false) ||
+                    obj.optInt("elec_arc_type", 0) > 0
             val play =
                 obj.optLong("play").takeIf { it > 0 }
                     ?: obj.optString("play").trim().toLongOrNull()?.takeIf { it > 0 }
@@ -2344,6 +2347,7 @@ object BiliApi {
                     danmaku = danmaku,
                     pubDate = created,
                     pubDateText = null,
+                    isChargingArc = isChargingArc,
                 ),
             )
         }

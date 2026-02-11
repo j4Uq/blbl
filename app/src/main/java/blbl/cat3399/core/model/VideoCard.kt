@@ -17,6 +17,7 @@ data class VideoCard(
     val danmaku: Long?,
     val pubDate: Long?,
     val pubDateText: String?,
+    val isChargingArc: Boolean = false,
 ) {
     fun stableKey(): String =
         when {

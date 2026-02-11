@@ -80,6 +80,7 @@ class VideoCardAdapter(
             binding.tvDuration.text = Format.duration(item.durationSec)
             binding.tvView.text = Format.count(item.view)
             binding.tvDanmaku.text = Format.count(item.danmaku)
+            binding.tvChargeBadge.isVisible = item.isChargingArc
             ImageLoader.loadInto(binding.ivCover, ImageUrl.cover(item.coverUrl))
 
             binding.root.setOnClickListener {
@@ -110,6 +111,12 @@ class VideoCardAdapter(
             }
 
             val textMargin = scaledPx(R.dimen.video_card_text_margin_tv)
+            (binding.tvChargeBadge.layoutParams as? MarginLayoutParams)?.let { lp ->
+                if (lp.leftMargin != textMargin || lp.topMargin != textMargin || lp.rightMargin != textMargin || lp.bottomMargin != textMargin) {
+                    lp.setMargins(textMargin, textMargin, textMargin, textMargin)
+                    binding.tvChargeBadge.layoutParams = lp
+                }
+            }
             (binding.tvDuration.layoutParams as? MarginLayoutParams)?.let { lp ->
                 if (lp.leftMargin != textMargin || lp.topMargin != textMargin || lp.rightMargin != textMargin || lp.bottomMargin != textMargin) {
                     lp.setMargins(textMargin, textMargin, textMargin, textMargin)
@@ -139,6 +146,7 @@ class VideoCardAdapter(
 
             val padH = scaledPx(R.dimen.video_card_duration_padding_h_tv)
             val padV = scaledPx(R.dimen.video_card_duration_padding_v_tv)
+            binding.tvChargeBadge.setPadding(padH, padV, padH, padV)
             binding.tvDuration.setPadding(padH, padV, padH, padV)
             binding.llStats.setPadding(padH, padV, padH, padV)
 
@@ -166,6 +174,10 @@ class VideoCardAdapter(
                 }
             }
 
+            binding.tvChargeBadge.setTextSize(
+                TypedValue.COMPLEX_UNIT_PX,
+                scaledPxF(R.dimen.video_card_duration_text_size_tv),
+            )
             binding.tvDuration.setTextSize(
                 TypedValue.COMPLEX_UNIT_PX,
                 scaledPxF(R.dimen.video_card_duration_text_size_tv),

@@ -57,6 +57,23 @@
                 app:layout_constraintTop_toTopOf="@id/guideline_cover_fade_top" />
 
             <TextView
+                android:id="@+id/tv_charge_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="@dimen/video_card_text_margin"
+                android:background="@drawable/bg_pgc_access_badge"
+                android:gravity="center"
+                android:paddingHorizontal="@dimen/video_card_duration_padding_h"
+                android:paddingVertical="@dimen/video_card_duration_padding_v"
+                android:text="@string/badge_charging"
+                android:textColor="@android:color/white"
+                android:textSize="@dimen/video_card_duration_text_size"
+                android:textStyle="bold"
+                android:visibility="gone"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <TextView
                 android:id="@+id/tv_duration"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
