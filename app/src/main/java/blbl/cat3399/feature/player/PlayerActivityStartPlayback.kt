@@ -232,8 +232,19 @@ internal fun PlayerActivity.startPlayback(
 
                 playlistUgcSeasonId = null
                 playlistUgcSeasonTitle = null
-                maybeOverridePlaylistWithUgcSeason(viewData, bvid = resolvedBvid)
-                maybeOverridePlaylistWithMultiPage(viewData, bvid = resolvedBvid)
+                val preferMultiPage =
+                    // Only prefer multi-page when the player infers playlist from view() results.
+                    // If an external playlist is provided (token), respect existing override order.
+                    playlistToken.isNullOrBlank()
+                if (preferMultiPage) {
+                    val applied = maybeOverridePlaylistWithMultiPage(viewData, bvid = resolvedBvid)
+                    if (!applied) {
+                        maybeOverridePlaylistWithUgcSeason(viewData, bvid = resolvedBvid)
+                    }
+                } else {
+                    maybeOverridePlaylistWithUgcSeason(viewData, bvid = resolvedBvid)
+                    maybeOverridePlaylistWithMultiPage(viewData, bvid = resolvedBvid)
+                }
 
                 requestOnlineWatchingText(bvid = resolvedBvid, cid = cid)
                 applyPerVideoPreferredQn(viewData, cid = cid)
@@ -409,30 +420,31 @@ internal suspend fun PlayerActivity.maybeOverridePlaylistWithUgcSeason(viewData:
     if (idxFromApi >= 0) apply(itemsFromApi, idxFromApi)
 }
 
-internal fun PlayerActivity.maybeOverridePlaylistWithMultiPage(viewData: JSONObject, bvid: String) {
-    if (shouldKeepExternalPlaylistFixed()) return
-    if (playlistUgcSeasonId != null) return
-    val pages = viewData.optJSONArray("pages") ?: return
-    if (pages.length() <= 1) return
+internal fun PlayerActivity.maybeOverridePlaylistWithMultiPage(viewData: JSONObject, bvid: String): Boolean {
+    if (shouldKeepExternalPlaylistFixed()) return false
+    if (playlistUgcSeasonId != null) return false
+    val pages = viewData.optJSONArray("pages") ?: return false
+    if (pages.length() <= 1) return false
 
     val aid = currentAid ?: viewData.optLong("aid").takeIf { it > 0 }
     val cid = currentCid.takeIf { it > 0 }
 
-    fun apply(items: List<PlayerPlaylistItem>, index: Int) {
-        if (items.isEmpty() || index !in items.indices) return
+    fun apply(items: List<PlayerPlaylistItem>, index: Int): Boolean {
+        if (items.isEmpty() || index !in items.indices) return false
         playlistToken?.let(PlayerPlaylistStore::remove)
         playlistToken = null
         playlistSource = null
         playlistItems = items
         playlistIndex = index
         updatePlaylistControls()
+        return true
     }
 
     val itemsFromView = parseMultiPagePlaylistFromView(viewData, bvid = bvid, aid = aid)
-    if (itemsFromView.size <= 1) return
+    if (itemsFromView.size <= 1) return false
     val idx = pickPlaylistIndexForCurrentMedia(itemsFromView, bvid = bvid, aid = aid, cid = cid)
     val safeIndex = if (idx in itemsFromView.indices) idx else 0
-    apply(itemsFromView, safeIndex)
+    return apply(itemsFromView, safeIndex)
 }
 
 internal fun PlayerActivity.handlePlaybackEnded(exo: ExoPlayer) {
