@@ -277,9 +277,12 @@ class AppPrefs(context: Context) {
 
     var playerOsdButtons: List<String>
         get() {
+            // IMPORTANT:
+            // - If the key doesn't exist yet, user never configured OSD -> return our default set.
+            // - If the key exists (even if empty), respect it and only normalize (e.g. keep Play/Pause).
+            if (!prefs.contains(KEY_PLAYER_OSD_BUTTONS)) return DEFAULT_PLAYER_OSD_BUTTONS
             val stored = loadStringList(KEY_PLAYER_OSD_BUTTONS)
-            val normalized = normalizePlayerOsdButtons(stored)
-            return normalized.ifEmpty { DEFAULT_PLAYER_OSD_BUTTONS }
+            return normalizePlayerOsdButtons(stored)
         }
         set(value) = saveStringList(KEY_PLAYER_OSD_BUTTONS, normalizePlayerOsdButtons(value))
 
@@ -484,7 +487,6 @@ class AppPrefs(context: Context) {
 
         val DEFAULT_PLAYER_OSD_BUTTONS: List<String> =
             listOf(
-                PLAYER_OSD_BTN_PREV,
                 PLAYER_OSD_BTN_PLAY_PAUSE,
                 PLAYER_OSD_BTN_NEXT,
                 PLAYER_OSD_BTN_SUBTITLE,
