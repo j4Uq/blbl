@@ -22,7 +22,7 @@ import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.ui.AppToast
 import blbl.cat3399.core.ui.Immersive
 import blbl.cat3399.core.ui.SingleChoiceDialog
-import blbl.cat3399.core.update.TestApkUpdater
+import blbl.cat3399.core.update.ApkUpdater
 import blbl.cat3399.feature.risk.GaiaVgateActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.progressindicator.LinearProgressIndicator
@@ -143,7 +143,7 @@ class SettingsInteractionHandler(
                 AppToast.show(activity, "是否只允许使用IPV4：${if (prefs.ipv4OnlyEnabled) "开" else "关"}")
                 runCatching { BiliClient.apiOkHttp.connectionPool.evictAll() }
                 runCatching { BiliClient.cdnOkHttp.connectionPool.evictAll() }
-                runCatching { TestApkUpdater.evictConnections() }
+                runCatching { ApkUpdater.evictConnections() }
                 renderer.refreshSection(entry.id)
             }
             SettingId.GaiaVgate -> showGaiaVgateDialog(state.currentSectionIndex, entry.id)
@@ -871,10 +871,10 @@ class SettingsInteractionHandler(
         testUpdateCheckJob =
             activity.lifecycleScope.launch {
                 try {
-                    val latest = TestApkUpdater.fetchLatestVersionName()
+                    val latest = ApkUpdater.fetchLatestVersionName()
                     val current = BuildConfig.VERSION_NAME
                     state.testUpdateCheckState =
-                        if (TestApkUpdater.isRemoteNewer(latest, current)) {
+                        if (ApkUpdater.isRemoteNewer(latest, current)) {
                             TestUpdateCheckState.UpdateAvailable(latest)
                         } else {
                             TestUpdateCheckState.Latest(latest)
@@ -916,7 +916,7 @@ class SettingsInteractionHandler(
         }
 
         val now = System.currentTimeMillis()
-        val cooldownLeftMs = TestApkUpdater.cooldownLeftMs(now)
+        val cooldownLeftMs = ApkUpdater.cooldownLeftMs(now)
         if (cooldownLeftMs > 0) {
             AppToast.show(activity, "操作太频繁，请稍后再试（${(cooldownLeftMs / 1000).coerceAtLeast(1)}s）")
             return
@@ -941,8 +941,8 @@ class SettingsInteractionHandler(
             activity.lifecycleScope.launch {
                 try {
                     val currentVersion = BuildConfig.VERSION_NAME
-                    val latestVersion = latestVersionHint ?: TestApkUpdater.fetchLatestVersionName()
-                    if (!TestApkUpdater.isRemoteNewer(latestVersion, currentVersion)) {
+                    val latestVersion = latestVersionHint ?: ApkUpdater.fetchLatestVersionName()
+                    if (!ApkUpdater.isRemoteNewer(latestVersion, currentVersion)) {
                         state.testUpdateCheckState = TestUpdateCheckState.Latest(latestVersion)
                         state.testUpdateCheckedAtMs = System.currentTimeMillis()
                         renderer.refreshAboutSectionKeepPosition()
@@ -962,20 +962,20 @@ class SettingsInteractionHandler(
                         progress.isIndeterminate = true
                     }
 
-                    TestApkUpdater.markStarted(now)
+                    ApkUpdater.markStarted(now)
                     val apkFile =
-                        TestApkUpdater.downloadApkToCache(
+                        ApkUpdater.downloadApkToCache(
                             context = activity,
-                            url = TestApkUpdater.TEST_APK_URL,
+                            url = ApkUpdater.TEST_APK_URL,
                         ) { dlState ->
                             activity.runOnUiThread {
                                 when (dlState) {
-                                    TestApkUpdater.Progress.Connecting -> {
+                                    ApkUpdater.Progress.Connecting -> {
                                         progress.isIndeterminate = true
                                         tvStatus.text = "连接中…"
                                     }
 
-                                    is TestApkUpdater.Progress.Downloading -> {
+                                    is ApkUpdater.Progress.Downloading -> {
                                         val pct = dlState.percent
                                         if (pct != null) {
                                             progress.isIndeterminate = false
@@ -994,7 +994,7 @@ class SettingsInteractionHandler(
                         tvStatus.text = "准备安装…"
                         progress.isIndeterminate = true
                     }
-                    TestApkUpdater.installApk(activity, apkFile)
+                    ApkUpdater.installApk(activity, apkFile)
                 } catch (_: CancellationException) {
                     activity.runOnUiThread {
                         dialog.dismiss()

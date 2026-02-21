@@ -21,7 +21,7 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
 
-object TestApkUpdater {
+object ApkUpdater {
     private const val DEBUG_APK_URL = "https://cat3399.top/blbl/blbl-latest-debug.apk"
     private const val RELEASE_APK_URL = "https://cat3399.top/blbl/blbl-latest-release.apk"
     val TEST_APK_URL: String
@@ -30,7 +30,6 @@ object TestApkUpdater {
         get() = "${TEST_APK_URL.substringBeforeLast('/')}/version"
 
     private const val COOLDOWN_MS = 5_000L
-    private const val MAX_BYTES_PER_SECOND: Long = 2L * 1024 * 1024
 
     @Volatile
     private var lastStartedAtMs: Long = 0L
@@ -164,9 +163,6 @@ object TestApkUpdater {
                         var speedBytes = 0L
                         var bytesPerSecond = 0L
 
-                        var throttleWindowStartNs = System.nanoTime()
-                        var throttleWindowBytes = 0L
-
                         while (true) {
                             ensureActive()
                             val read = input.read(buf)
@@ -182,21 +178,6 @@ object TestApkUpdater {
                                 bytesPerSecond = (speedBytes * 1_000L / speedElapsedMs.coerceAtLeast(1)).coerceAtLeast(0)
                                 speedBytes = 0L
                                 speedAtMs = nowMs
-                            }
-
-                            // Throttle: keep average <= MAX_BYTES_PER_SECOND over a short window.
-                            if (MAX_BYTES_PER_SECOND > 0) {
-                                throttleWindowBytes += read
-                                val elapsedNs = System.nanoTime() - throttleWindowStartNs
-                                val expectedNs = (throttleWindowBytes * 1_000_000_000L) / MAX_BYTES_PER_SECOND
-                                if (expectedNs > elapsedNs) {
-                                    val sleepMs = ((expectedNs - elapsedNs) / 1_000_000L).coerceAtLeast(1L)
-                                    delay(sleepMs)
-                                }
-                                if (elapsedNs >= 750_000_000L) {
-                                    throttleWindowStartNs = System.nanoTime()
-                                    throttleWindowBytes = 0L
-                                }
                             }
 
                             // UI progress: at most 5 updates per second.

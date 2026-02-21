@@ -301,7 +301,7 @@ class SettingsRenderer(
     private fun aboutUpdateEntry(): SettingEntry {
         val currentVersion = BuildConfig.VERSION_NAME
         val title = "检查更新"
-        val defaultDesc = "从内置直链下载 APK 并覆盖安装（限速）"
+        val defaultDesc = "检查新版本并下载安装"
         return when (val checkState = state.testUpdateCheckState) {
             TestUpdateCheckState.Idle -> SettingEntry(SettingId.CheckUpdate, title, "点击检查", defaultDesc)
             TestUpdateCheckState.Checking -> SettingEntry(SettingId.CheckUpdate, title, "检查中…", "正在获取最新版本号…")
