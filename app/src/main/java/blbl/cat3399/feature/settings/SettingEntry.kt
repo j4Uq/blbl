@@ -11,6 +11,7 @@ enum class SettingId(
     // 通用设置
     ImageQuality("image_quality"),
     UserAgent("user_agent"),
+    Ipv4OnlyEnabled("ipv4_only_enabled"),
     GaiaVgate("gaia_vgate"),
     ClearCache("clear_cache"),
     ClearLogin("clear_login"),

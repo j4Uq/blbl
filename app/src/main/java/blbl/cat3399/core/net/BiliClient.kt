@@ -41,8 +41,10 @@ object BiliClient {
     fun init(context: Context) {
         prefs = AppPrefs(context.applicationContext)
         cookies = CookieStore(context.applicationContext)
+        val dns = ipv4OnlyDns { prefs.ipv4OnlyEnabled }
         val baseClient = OkHttpClient.Builder()
             .cookieJar(cookies)
+            .dns(dns)
             .connectTimeout(12, TimeUnit.SECONDS)
             .readTimeout(20, TimeUnit.SECONDS)
             .writeTimeout(20, TimeUnit.SECONDS)

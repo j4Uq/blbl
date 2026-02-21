@@ -4,7 +4,9 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
 import blbl.cat3399.BuildConfig
+import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.net.await
+import blbl.cat3399.core.net.ipv4OnlyDns
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -33,12 +35,21 @@ object TestApkUpdater {
     @Volatile
     private var lastStartedAtMs: Long = 0L
 
-    private val okHttp: OkHttpClient by lazy {
-        OkHttpClient.Builder()
-            .connectTimeout(12, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .writeTimeout(60, TimeUnit.SECONDS)
-            .build()
+    private val okHttpLazy: Lazy<OkHttpClient> =
+        lazy {
+            OkHttpClient.Builder()
+                .dns(ipv4OnlyDns { BiliClient.prefs.ipv4OnlyEnabled })
+                .connectTimeout(12, TimeUnit.SECONDS)
+                .readTimeout(60, TimeUnit.SECONDS)
+                .writeTimeout(60, TimeUnit.SECONDS)
+                .build()
+        }
+
+    private val okHttp: OkHttpClient
+        get() = okHttpLazy.value
+
+    fun evictConnections() {
+        if (okHttpLazy.isInitialized()) okHttp.connectionPool.evictAll()
     }
 
     sealed class Progress {

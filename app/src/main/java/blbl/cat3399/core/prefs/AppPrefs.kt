@@ -41,6 +41,10 @@ class AppPrefs(context: Context) {
         get() = prefs.getString(KEY_UA, DEFAULT_UA) ?: DEFAULT_UA
         set(value) = prefs.edit().putString(KEY_UA, value).apply()
 
+    var ipv4OnlyEnabled: Boolean
+        get() = prefs.getBoolean(KEY_IPV4_ONLY_ENABLED, false)
+        set(value) = prefs.edit().putBoolean(KEY_IPV4_ONLY_ENABLED, value).apply()
+
     var deviceBuvid: String
         get() = prefs.getString(KEY_DEVICE_BUVID, null) ?: generateBuvid().also { prefs.edit().putString(KEY_DEVICE_BUVID, it).apply() }
         set(value) = prefs.edit().putString(KEY_DEVICE_BUVID, value.trim()).apply()
@@ -404,6 +408,7 @@ class AppPrefs(context: Context) {
         private const val KEY_BILI_TICKET_CHECKED_EPOCH_DAY = "bili_ticket_checked_epoch_day"
 
         private const val KEY_UA = "ua"
+        private const val KEY_IPV4_ONLY_ENABLED = "ipv4_only_enabled"
         private const val KEY_DEVICE_BUVID = "device_buvid"
         private const val KEY_BUVID_ACTIVATED_MID = "buvid_activated_mid"
         private const val KEY_BUVID_ACTIVATED_EPOCH_DAY = "buvid_activated_epoch_day"

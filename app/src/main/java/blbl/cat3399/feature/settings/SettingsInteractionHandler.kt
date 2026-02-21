@@ -138,6 +138,14 @@ class SettingsInteractionHandler(
             }
 
             SettingId.UserAgent -> showUserAgentDialog(state.currentSectionIndex, entry.id)
+            SettingId.Ipv4OnlyEnabled -> {
+                prefs.ipv4OnlyEnabled = !prefs.ipv4OnlyEnabled
+                AppToast.show(activity, "是否只允许使用IPV4：${if (prefs.ipv4OnlyEnabled) "开" else "关"}")
+                runCatching { BiliClient.apiOkHttp.connectionPool.evictAll() }
+                runCatching { BiliClient.cdnOkHttp.connectionPool.evictAll() }
+                runCatching { TestApkUpdater.evictConnections() }
+                renderer.refreshSection(entry.id)
+            }
             SettingId.GaiaVgate -> showGaiaVgateDialog(state.currentSectionIndex, entry.id)
             SettingId.ClearCache -> showClearCacheDialog(state.currentSectionIndex, entry.id)
             SettingId.ClearLogin -> showClearLoginDialog(state.currentSectionIndex, entry.id)
