@@ -5,4 +5,5 @@
     <item name="tag_emote_text_key" type="id" />
     <item name="tag_app_toast_view" type="id" />
     <item name="tag_app_toast_hide_runnable" type="id" />
+    <item name="tag_player_list_panel_base_metrics" type="id" />
 </resources>

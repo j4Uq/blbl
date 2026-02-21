@@ -526,7 +526,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        app:layout_constraintGuide_percent="0.56" />
+        app:layout_constraintGuide_percent="0.47" />
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/recommend_panel"
@@ -534,7 +534,7 @@
         android:layout_height="0dp"
         android:layout_margin="16dp"
         android:layout_marginTop="0dp"
-        android:layout_marginBottom="40dp"
+        android:layout_marginBottom="24dp"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
@@ -630,7 +630,8 @@
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/recycler_recommend"
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical"
                     android:clipChildren="false"
                     android:clipToPadding="false"
                     android:overScrollMode="never" />

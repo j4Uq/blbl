@@ -11,6 +11,8 @@ import blbl.cat3399.core.prefs.AppPrefs
 import blbl.cat3399.core.ui.BackButtonSizingHelper
 import blbl.cat3399.core.ui.UiScale
 import blbl.cat3399.databinding.ActivityPlayerBinding
+import blbl.cat3399.feature.video.VideoCardAdapter
+import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -135,6 +137,46 @@ object PlayerOsdSizing {
  * This file exists to reduce the size/complexity of PlayerActivity/LivePlayerActivity.
  */
 internal object PlayerUiMode {
+    private data class Insets(
+        val left: Int,
+        val top: Int,
+        val right: Int,
+        val bottom: Int,
+    )
+
+    private data class Margins(
+        val start: Int,
+        val top: Int,
+        val end: Int,
+        val bottom: Int,
+    )
+
+    private data class TextViewMetrics(
+        val margins: Margins,
+        val padding: Insets,
+        val textSizePx: Float,
+    )
+
+    private data class ListPanelBaseMetrics(
+        val panelMargins: Margins,
+        val tabRowMargins: Margins,
+        val tabRowPadding: Insets,
+        val tabPage: TextViewMetrics,
+        val tabParts: TextViewMetrics,
+        val tabRecommend: TextViewMetrics,
+        val bodyMargins: Margins,
+        val bodyRadiusPx: Float,
+        val bodyElevationPx: Float,
+        val contentPadding: Insets,
+        val recyclerPadding: Insets,
+        val emptyView: TextViewMetrics,
+    )
+
+    private class ListPanelSizingState(
+        val base: ListPanelBaseMetrics,
+        var lastAppliedScale: Float? = null,
+    )
+
     fun applyVideo(activity: Activity, binding: ActivityPlayerBinding, fixedAutoScale: Float? = null) {
         val density = activity.resources.displayMetrics.density
         val autoScale =
@@ -153,6 +195,8 @@ internal object PlayerUiMode {
         fun scaledPx(id: Int): Int = (px(id) * uiScale).roundToInt().coerceAtLeast(0)
         fun scaledPxF(id: Int): Float = pxF(id) * uiScale
         fun scaledSidebarPx(id: Int): Int = (px(id) * sidebarScale).roundToInt().coerceAtLeast(0)
+
+        applyBottomListPanelSizing(binding = binding, scale = sidebarScale)
 
         val topPadH = scaledPx(R.dimen.player_top_bar_padding_h_tv)
         val topPadV = scaledPx(R.dimen.player_top_bar_padding_v_tv)
@@ -531,6 +575,120 @@ internal object PlayerUiMode {
         ) {
             binding.tvSeekHint.setPadding(hintPadH, hintPadV, hintPadH, hintPadV)
         }
+    }
+
+    private fun applyBottomListPanelSizing(binding: ActivityPlayerBinding, scale: Float) {
+        val s = scale.takeIf { it.isFinite() && it > 0f } ?: 1.0f
+
+        val state =
+            (binding.recommendPanel.getTag(R.id.tag_player_list_panel_base_metrics) as? ListPanelSizingState)
+                ?: ListPanelSizingState(base = captureBottomListPanelBaseMetrics(binding)).also {
+                    binding.recommendPanel.setTag(R.id.tag_player_list_panel_base_metrics, it)
+                }
+
+        val last = state.lastAppliedScale
+        if (last != null && abs(last - s) < 0.001f) return
+        state.lastAppliedScale = s
+
+        fun scaledPx(basePx: Int): Int = (basePx * s).roundToInt().coerceAtLeast(0)
+        fun scaledPxF(basePx: Float): Float = (basePx * s).coerceAtLeast(0f)
+
+        fun applyMargins(view: View, base: Margins) {
+            val lp = view.layoutParams as? MarginLayoutParams ?: return
+            val ms = scaledPx(base.start)
+            val mt = scaledPx(base.top)
+            val me = scaledPx(base.end)
+            val mb = scaledPx(base.bottom)
+            if (lp.marginStart != ms || lp.topMargin != mt || lp.marginEnd != me || lp.bottomMargin != mb) {
+                lp.marginStart = ms
+                lp.topMargin = mt
+                lp.marginEnd = me
+                lp.bottomMargin = mb
+                view.layoutParams = lp
+            }
+        }
+
+        fun applyPadding(view: View, base: Insets) {
+            val pl = scaledPx(base.left)
+            val pt = scaledPx(base.top)
+            val pr = scaledPx(base.right)
+            val pb = scaledPx(base.bottom)
+            if (view.paddingLeft != pl || view.paddingTop != pt || view.paddingRight != pr || view.paddingBottom != pb) {
+                view.setPadding(pl, pt, pr, pb)
+            }
+        }
+
+        fun applyTextView(view: android.widget.TextView, base: TextViewMetrics) {
+            applyMargins(view, base.margins)
+            applyPadding(view, base.padding)
+            val textSize = scaledPxF(base.textSizePx).coerceAtLeast(1f)
+            view.setTextSize(TypedValue.COMPLEX_UNIT_PX, textSize)
+        }
+
+        val base = state.base
+        applyMargins(binding.recommendPanel, base.panelMargins)
+        applyMargins(binding.listPanelTabRow, base.tabRowMargins)
+        applyPadding(binding.listPanelTabRow, base.tabRowPadding)
+
+        applyTextView(binding.tabPageList, base.tabPage)
+        applyTextView(binding.tabPartsList, base.tabParts)
+        applyTextView(binding.tabRecommendList, base.tabRecommend)
+
+        applyMargins(binding.listPanelBody, base.bodyMargins)
+        val radius = scaledPxF(base.bodyRadiusPx)
+        if (binding.listPanelBody.radius != radius) binding.listPanelBody.radius = radius
+        val elevation = scaledPxF(base.bodyElevationPx)
+        if (binding.listPanelBody.cardElevation != elevation) binding.listPanelBody.cardElevation = elevation
+
+        applyPadding(binding.listPanelContent, base.contentPadding)
+        applyPadding(binding.recyclerRecommend, base.recyclerPadding)
+        applyTextView(binding.tvListPanelEmpty, base.emptyView)
+
+        (binding.recyclerRecommend.adapter as? VideoCardAdapter)?.invalidateSizing()
+    }
+
+    private fun captureBottomListPanelBaseMetrics(binding: ActivityPlayerBinding): ListPanelBaseMetrics {
+        fun captureMargins(view: View): Margins {
+            val lp = view.layoutParams as? MarginLayoutParams
+            return Margins(
+                start = lp?.marginStart ?: 0,
+                top = lp?.topMargin ?: 0,
+                end = lp?.marginEnd ?: 0,
+                bottom = lp?.bottomMargin ?: 0,
+            )
+        }
+
+        fun capturePadding(view: View): Insets {
+            return Insets(
+                left = view.paddingLeft,
+                top = view.paddingTop,
+                right = view.paddingRight,
+                bottom = view.paddingBottom,
+            )
+        }
+
+        fun captureTextViewMetrics(view: android.widget.TextView): TextViewMetrics {
+            return TextViewMetrics(
+                margins = captureMargins(view),
+                padding = capturePadding(view),
+                textSizePx = view.textSize,
+            )
+        }
+
+        return ListPanelBaseMetrics(
+            panelMargins = captureMargins(binding.recommendPanel),
+            tabRowMargins = captureMargins(binding.listPanelTabRow),
+            tabRowPadding = capturePadding(binding.listPanelTabRow),
+            tabPage = captureTextViewMetrics(binding.tabPageList),
+            tabParts = captureTextViewMetrics(binding.tabPartsList),
+            tabRecommend = captureTextViewMetrics(binding.tabRecommendList),
+            bodyMargins = captureMargins(binding.listPanelBody),
+            bodyRadiusPx = binding.listPanelBody.radius,
+            bodyElevationPx = binding.listPanelBody.cardElevation,
+            contentPadding = capturePadding(binding.listPanelContent),
+            recyclerPadding = capturePadding(binding.recyclerRecommend),
+            emptyView = captureTextViewMetrics(binding.tvListPanelEmpty),
+        )
     }
 
     private fun setSize(view: View, widthPx: Int, heightPx: Int) {

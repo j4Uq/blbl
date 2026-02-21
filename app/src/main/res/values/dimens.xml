@@ -119,8 +119,8 @@
     <dimen name="video_detail_playlist_item_corner_radius_tv">20dp</dimen>
 
     <!-- Dynamic: following list -->
-    <dimen name="dynamic_following_panel_width">171dp</dimen>
-    <dimen name="dynamic_following_panel_width_tv">225dp</dimen>
+    <dimen name="dynamic_following_panel_width">165dp</dimen>
+    <dimen name="dynamic_following_panel_width_tv">220dp</dimen>
     <dimen name="dynamic_following_panel_margin">8dp</dimen>
     <dimen name="dynamic_following_panel_margin_tv">8dp</dimen>
     <dimen name="dynamic_following_list_padding">3dp</dimen>
