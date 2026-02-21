@@ -397,23 +397,11 @@ class SearchRenderer(
 
         var imeEditMode = false
 
-        input.setOnEditorActionListener { _, actionId, event ->
-            val isConfirmKey =
-                event != null &&
-                    event.action == KeyEvent.ACTION_DOWN &&
-                    (
-                        event.keyCode == KeyEvent.KEYCODE_ENTER ||
-                            event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER ||
-                            event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER
-                    )
-
-            val isConfirmAction =
-                actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH ||
-                    actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE ||
-                    actionId == android.view.inputmethod.EditorInfo.IME_ACTION_GO ||
-                    actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEND
-
-            if (isConfirmAction || isConfirmKey) {
+        input.setOnEditorActionListener { _, actionId, _ ->
+            // Only treat explicit IME "search" action as a search trigger.
+            // Hardware DPAD/ENTER should not trigger search directly on the input.
+            val isImeSearchAction = actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
+            if (imeEditMode && isImeSearchAction) {
                 interactor.performSearch()
                 true
             } else {
@@ -476,11 +464,8 @@ class SearchRenderer(
                 KeyEvent.KEYCODE_ENTER,
                 KeyEvent.KEYCODE_NUMPAD_ENTER,
                 -> {
-                    if (imeEditMode) {
-                        interactor.performSearch()
-                    } else {
-                        enterImeEditMode()
-                    }
+                    if (imeEditMode) return@setOnKeyListener false
+                    enterImeEditMode()
                     true
                 }
 
