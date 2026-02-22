@@ -126,6 +126,7 @@
         app:layout_constraintStart_toEndOf="@id/tv_episode_header">
 
         <LinearLayout
+            android:id="@+id/episode_order_content"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
             android:gravity="center"
@@ -133,6 +134,7 @@
             android:paddingHorizontal="10dp">
 
             <ImageView
+                android:id="@+id/iv_episode_order_icon"
                 android:layout_width="18dp"
                 android:layout_height="18dp"
                 android:layout_marginEnd="6dp"
@@ -149,6 +151,13 @@
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
+    <androidx.constraintlayout.widget.Barrier
+        android:id="@+id/barrier_episode_header_bottom"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:barrierDirection="bottom"
+        app:constraint_referenced_ids="tv_episode_header,btn_episode_order" />
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recycler_episodes"
         android:layout_width="0dp"
@@ -159,6 +168,6 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/tv_episode_header" />
+        app:layout_constraintTop_toBottomOf="@id/barrier_episode_header_bottom" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

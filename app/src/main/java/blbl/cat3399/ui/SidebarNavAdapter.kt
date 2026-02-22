@@ -2,7 +2,6 @@ package blbl.cat3399.ui
 
 import android.content.res.ColorStateList
 import android.os.SystemClock
-import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -11,7 +10,6 @@ import androidx.recyclerview.widget.RecyclerView
 import blbl.cat3399.R
 import blbl.cat3399.core.log.AppLog
 import blbl.cat3399.databinding.ItemSidebarNavBinding
-import kotlin.math.roundToInt
 
 class SidebarNavAdapter(
     private val onClick: (NavItem) -> Boolean,
@@ -24,7 +22,6 @@ class SidebarNavAdapter(
 
     private val items = ArrayList<NavItem>()
     private var selectedId: Int = ID_HOME
-    private var sidebarScale: Float = 1.0f
     private var showLabelsAlways: Boolean = false
 
     fun submit(list: List<NavItem>, selectedId: Int) {
@@ -37,13 +34,6 @@ class SidebarNavAdapter(
     fun setShowLabelsAlways(enabled: Boolean) {
         if (showLabelsAlways == enabled) return
         showLabelsAlways = enabled
-        notifyDataSetChanged()
-    }
-
-    fun setSidebarScale(scale: Float) {
-        val value = scale.coerceIn(0.60f, 1.40f)
-        if (sidebarScale == value) return
-        sidebarScale = value
         notifyDataSetChanged()
     }
 
@@ -79,9 +69,9 @@ class SidebarNavAdapter(
         val selected = item.id == selectedId
         AppLog.d(
             "Nav",
-            "bind pos=$position id=${item.id} selected=$selected labels=$showLabelsAlways scale=$sidebarScale t=${SystemClock.uptimeMillis()}",
+            "bind pos=$position id=${item.id} selected=$selected labels=$showLabelsAlways t=${SystemClock.uptimeMillis()}",
         )
-        holder.bind(item, selected, sidebarScale, showLabelsAlways) {
+        holder.bind(item, selected, showLabelsAlways) {
             val handled = onClick(item)
             if (handled) select(item.id, trigger = false)
         }
@@ -93,13 +83,9 @@ class SidebarNavAdapter(
         fun bind(
             item: NavItem,
             selected: Boolean,
-            sidebarScale: Float,
             showLabelsAlways: Boolean,
             onClick: () -> Unit,
         ) {
-            val scale = sidebarScale.coerceIn(0.60f, 1.40f)
-            applySizing(scale)
-
             binding.ivIcon.setImageResource(item.iconRes)
             binding.tvLabel.text = item.title
             binding.tvLabel.visibility = if (showLabelsAlways || selected) View.VISIBLE else View.GONE
@@ -112,68 +98,17 @@ class SidebarNavAdapter(
 
             val heightRes =
                 when {
-                    showLabelsAlways -> R.dimen.sidebar_nav_item_height_labeled_tv
-                    selected -> R.dimen.sidebar_nav_item_height_selected_tv
-                    else -> R.dimen.sidebar_nav_item_height_default_tv
+                    showLabelsAlways -> R.dimen.sidebar_nav_item_height_labeled
+                    selected -> R.dimen.sidebar_nav_item_height_selected
+                    else -> R.dimen.sidebar_nav_item_height_default
                 }
-            val heightPx =
-                (binding.root.resources.getDimensionPixelSize(
-                    heightRes,
-                ) * scale).roundToInt().coerceAtLeast(1)
+            val heightPx = binding.root.resources.getDimensionPixelSize(heightRes).coerceAtLeast(1)
             val lp = binding.card.layoutParams
-            lp.height = heightPx
-            binding.card.layoutParams = lp
+            if (lp.height != heightPx) {
+                lp.height = heightPx
+                binding.card.layoutParams = lp
+            }
             binding.root.setOnClickListener { onClick() }
-        }
-
-        private fun applySizing(scale: Float) {
-            fun px(id: Int): Int = binding.root.resources.getDimensionPixelSize(id)
-            fun pxF(id: Int): Float = binding.root.resources.getDimension(id)
-            fun scaledPx(id: Int): Int = (px(id) * scale).roundToInt()
-            fun scaledPxF(id: Int): Float = pxF(id) * scale
-
-            val iconSize = scaledPx(R.dimen.sidebar_nav_icon_size_tv)
-            val iconLp = binding.ivIcon.layoutParams
-            if (iconLp.width != iconSize || iconLp.height != iconSize) {
-                iconLp.width = iconSize
-                iconLp.height = iconSize
-                binding.ivIcon.layoutParams = iconLp
-            }
-
-            binding.tvLabel.setTextSize(
-                TypedValue.COMPLEX_UNIT_PX,
-                scaledPxF(R.dimen.sidebar_nav_label_text_size_tv),
-            )
-
-            (binding.tvLabel.layoutParams as? ViewGroup.MarginLayoutParams)?.let { lp ->
-                val mt = scaledPx(R.dimen.sidebar_nav_label_margin_top_tv)
-                if (lp.topMargin != mt) {
-                    lp.topMargin = mt
-                    binding.tvLabel.layoutParams = lp
-                }
-            }
-
-            val padV = scaledPx(R.dimen.sidebar_nav_container_padding_v_tv)
-            if (binding.container.paddingTop != padV || binding.container.paddingBottom != padV) {
-                binding.container.setPadding(
-                    binding.container.paddingLeft,
-                    padV,
-                    binding.container.paddingRight,
-                    padV,
-                )
-            }
-
-            (binding.card.layoutParams as? ViewGroup.MarginLayoutParams)?.let { lp ->
-                val mv = scaledPx(R.dimen.sidebar_nav_card_margin_v_tv)
-                val mh = scaledPx(R.dimen.sidebar_nav_card_margin_h_tv)
-                if (lp.topMargin != mv || lp.bottomMargin != mv || lp.leftMargin != mh || lp.rightMargin != mh) {
-                    lp.topMargin = mv
-                    lp.bottomMargin = mv
-                    lp.leftMargin = mh
-                    lp.rightMargin = mh
-                    binding.card.layoutParams = lp
-                }
-            }
         }
     }
 

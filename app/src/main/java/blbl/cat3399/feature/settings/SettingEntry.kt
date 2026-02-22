@@ -21,7 +21,7 @@ enum class SettingId(
     GridSpanCount("grid_span_count"),
     DynamicGridSpanCount("dynamic_grid_span_count"),
     PgcGridSpanCount("pgc_grid_span_count"),
-    SidebarSize("sidebar_size"),
+    UiScaleFactor("ui_scale_factor"),
     FullscreenEnabled("fullscreen_enabled"),
     TabSwitchFollowsFocus("tab_switch_follows_focus"),
 

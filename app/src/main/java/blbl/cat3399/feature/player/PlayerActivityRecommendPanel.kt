@@ -63,8 +63,8 @@ internal fun PlayerActivity.initBottomCardPanel() {
                 }
             },
             onLongClick = null,
-            fixedItemWidthTvDimen = R.dimen.player_recommend_card_width_tv,
-            fixedItemMarginTvDimen = R.dimen.player_recommend_card_margin_tv,
+            fixedItemWidthDimenRes = R.dimen.player_recommend_card_width,
+            fixedItemMarginDimenRes = R.dimen.player_recommend_card_margin,
             stableIdKey = { card ->
                 buildString {
                     append(card.bvid)

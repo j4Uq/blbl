@@ -15,7 +15,6 @@ import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.ui.AppToast
 import blbl.cat3399.core.ui.DpadGridController
 import blbl.cat3399.core.ui.FocusTreeUtils
-import blbl.cat3399.core.ui.UiScale
 import blbl.cat3399.core.ui.postIfAlive
 import blbl.cat3399.databinding.FragmentVideoGridBinding
 import blbl.cat3399.feature.following.openUpDetailFromVideoCard
@@ -33,7 +32,6 @@ class MyToViewFragment : Fragment(), MyTabSwitchFocusTarget, RefreshKeyHandler {
     private val binding get() = _binding!!
 
     private lateinit var adapter: VideoCardAdapter
-    private var lastUiScaleFactor: Float? = null
     private var initialLoadTriggered: Boolean = false
     private var requestToken: Int = 0
     private var pendingFocusFirstItemFromTabSwitch: Boolean = false
@@ -131,17 +129,10 @@ class MyToViewFragment : Fragment(), MyTabSwitchFocusTarget, RefreshKeyHandler {
                     ),
             ).also { it.install() }
         binding.swipeRefresh.setOnRefreshListener { reload() }
-        lastUiScaleFactor = UiScale.factor(requireContext())
     }
 
     override fun onResume() {
         super.onResume()
-        if (this::adapter.isInitialized) {
-            val old = lastUiScaleFactor
-            val now = UiScale.factor(requireContext())
-            lastUiScaleFactor = now
-            if (old != null && old != now) adapter.invalidateSizing()
-        }
         (binding.recycler.layoutManager as? GridLayoutManager)?.spanCount = spanCountForWidth(resources)
         maybeTriggerInitialLoad()
         maybeConsumePendingFocusFirstItemFromTabSwitch()

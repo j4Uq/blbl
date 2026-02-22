@@ -10,6 +10,7 @@ import blbl.cat3399.core.net.AppSigner
 import blbl.cat3399.core.net.WebCookieMaintainer
 import blbl.cat3399.core.ui.BaseActivity
 import blbl.cat3399.core.ui.Immersive
+import blbl.cat3399.core.ui.cloneInUserScale
 import blbl.cat3399.databinding.ActivityQrLoginBinding
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
@@ -53,7 +54,7 @@ class QrLoginActivity : BaseActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityQrLoginBinding.inflate(layoutInflater)
+        binding = ActivityQrLoginBinding.inflate(layoutInflater.cloneInUserScale(this))
         setContentView(binding.root)
         Immersive.apply(this, BiliClient.prefs.fullscreenEnabled)
 

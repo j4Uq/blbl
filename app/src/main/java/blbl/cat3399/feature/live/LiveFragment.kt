@@ -76,6 +76,10 @@ class LiveFragment : Fragment(), LiveGridTabSwitchFocusHost, BackPressHandler, L
             }
     }
 
+    override fun onResume() {
+        super.onResume()
+    }
+
     override fun openAreaDetail(parentAreaId: Int, parentTitle: String, areaId: Int, areaTitle: String): Boolean {
         if (_binding == null || childFragmentManager.isStateSaved) return false
         pendingRestoreFocusAfterDetailReturn = true

@@ -62,7 +62,6 @@ import blbl.cat3399.core.ui.FocusReturn
 import blbl.cat3399.core.ui.FocusTreeUtils
 import blbl.cat3399.core.ui.Immersive
 import blbl.cat3399.core.ui.SingleChoiceDialog
-import blbl.cat3399.core.ui.UiScale
 import blbl.cat3399.core.util.Format as BlblFormat
 import blbl.cat3399.feature.following.UpDetailActivity
 import blbl.cat3399.feature.player.danmaku.DanmakuSessionSettings
@@ -87,6 +86,8 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 class PlayerActivity : BaseActivity() {
+    override fun shouldRecreateOnUiScaleChange(): Boolean = false
+
     internal lateinit var binding: ActivityPlayerBinding
     internal var player: ExoPlayer? = null
     internal val sidePanelFocusReturn = FocusReturn()
@@ -163,9 +164,6 @@ class PlayerActivity : BaseActivity() {
     internal var transientSeekOsdVisible: Boolean = false
     internal var bottomBarFullConstraints: ConstraintSet? = null
     internal var bottomBarSeekConstraints: ConstraintSet? = null
-    private var fixedAutoScale: Float? = null
-    private var fixedAutoScaleWindowWidth: Int = -1
-    private var fixedAutoScaleWindowHeight: Int = -1
 
     internal enum class OsdMode {
         Hidden,
@@ -561,23 +559,9 @@ class PlayerActivity : BaseActivity() {
         binding = ActivityPlayerBinding.bind(root)
         setContentView(binding.root)
         Immersive.apply(this, prefs.fullscreenEnabled)
-        recomputeFixedAutoScaleIfWindowChanged(force = false)
-        PlayerUiMode.applyVideo(this, binding, fixedAutoScale = fixedAutoScale)
+        PlayerUiMode.applyVideo(this, binding)
         binding.topBar.setBackgroundResource(R.drawable.bg_player_top_scrim_strong)
         ensureBottomBarConstraintSets()
-
-        // Re-apply only when real window size changes; keep panel open/close from affecting OSD scale.
-        binding.playerView.addOnLayoutChangeListener { _, l, t, r, b, ol, ot, or, ob ->
-            if (exitCleanupRequested || isFinishing) return@addOnLayoutChangeListener
-            val w = r - l
-            val h = b - t
-            val ow = or - ol
-            val oh = ob - ot
-            if (w <= 0 || h <= 0 || (w == ow && h == oh)) return@addOnLayoutChangeListener
-            if (recomputeFixedAutoScaleIfWindowChanged(force = false)) {
-                PlayerUiMode.applyVideo(this, binding, fixedAutoScale = fixedAutoScale)
-            }
-        }
 
         binding.topBar.visibility = View.GONE
         binding.bottomBar.visibility = View.GONE
@@ -1067,26 +1051,10 @@ class PlayerActivity : BaseActivity() {
     override fun onResume() {
         super.onResume()
         PlayerOsdSizing.applyTheme(this)
-        recomputeFixedAutoScaleIfWindowChanged(force = false)
-        PlayerUiMode.applyVideo(this, binding, fixedAutoScale = fixedAutoScale)
+        PlayerUiMode.applyVideo(this, binding)
         applyOsdButtonsVisibility()
         updatePersistentBottomProgressBarVisibility()
         (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
-    }
-
-    private fun recomputeFixedAutoScaleIfWindowChanged(force: Boolean): Boolean {
-        val windowWidth = binding.root.width
-        val windowHeight = binding.root.height
-        val playerWidth = binding.playerView.width
-        val playerHeight = binding.playerView.height
-        if (windowWidth <= 0 || windowHeight <= 0 || playerWidth <= 0 || playerHeight <= 0) return false
-        if (!force && fixedAutoScale != null && windowWidth == fixedAutoScaleWindowWidth && windowHeight == fixedAutoScaleWindowHeight) {
-            return false
-        }
-        fixedAutoScale = PlayerContentAutoScale.factor(binding.playerView, resources.displayMetrics.density)
-        fixedAutoScaleWindowWidth = windowWidth
-        fixedAutoScaleWindowHeight = windowHeight
-        return true
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {

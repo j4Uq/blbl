@@ -22,9 +22,9 @@ import blbl.cat3399.core.ui.DpadGridController
 import blbl.cat3399.core.ui.FocusTreeUtils
 import blbl.cat3399.core.ui.GridSpanPolicy
 import blbl.cat3399.core.ui.UiScale
-import blbl.cat3399.core.ui.doOnPreDrawIfAlive
 import blbl.cat3399.core.ui.enableDpadTabFocus
 import blbl.cat3399.core.ui.postIfAlive
+import blbl.cat3399.core.ui.uiScaler
 import blbl.cat3399.databinding.FragmentSearchBinding
 import blbl.cat3399.feature.following.FollowingGridAdapter
 import blbl.cat3399.feature.following.UpDetailActivity
@@ -38,7 +38,6 @@ import blbl.cat3399.feature.player.PlayerPlaylistStore
 import blbl.cat3399.feature.video.VideoDetailActivity
 import blbl.cat3399.feature.video.VideoCardAdapter
 import com.google.android.material.card.MaterialCardView
-import kotlin.math.roundToInt
 
 class SearchRenderer(
     private val fragment: SearchFragment,
@@ -132,7 +131,6 @@ class SearchRenderer(
         }
 
     private var resultsGridController: DpadGridController? = null
-    private var pendingTabTextScaleFix: Boolean = false
 
     init {
         videoAdapter =
@@ -581,16 +579,13 @@ class SearchRenderer(
             object : com.google.android.material.tabs.TabLayout.OnTabSelectedListener {
                 override fun onTabSelected(tab: com.google.android.material.tabs.TabLayout.Tab) {
                     interactor.onTabSelected(tab.position)
-                    scheduleTabTextScaleFix()
                 }
 
                 override fun onTabUnselected(tab: com.google.android.material.tabs.TabLayout.Tab) {
-                    scheduleTabTextScaleFix()
                 }
 
                 override fun onTabReselected(tab: com.google.android.material.tabs.TabLayout.Tab) {
                     interactor.onTabReselected(tab.position)
-                    scheduleTabTextScaleFix()
                 }
             },
         )
@@ -607,50 +602,6 @@ class SearchRenderer(
         binding.swipeRefresh.setOnRefreshListener { interactor.resetAndLoad() }
     }
 
-    private fun scheduleTabTextScaleFix() {
-        if (released) return
-        if (pendingTabTextScaleFix) return
-        pendingTabTextScaleFix = true
-        val tabLayout = binding.tabLayout
-        tabLayout.doOnPreDrawIfAlive(isAlive = { !released }) {
-            pendingTabTextScaleFix = false
-            enforceTabTextScale()
-        }
-        tabLayout.invalidate()
-    }
-
-    private fun enforceTabTextScale() {
-        if (released) return
-        val scale = UiScale.factor(viewContext)
-        val basePx =
-            viewContext.obtainStyledAttributes(R.style.TextAppearance_Blbl_Tab, intArrayOf(android.R.attr.textSize)).run {
-                try {
-                    getDimension(0, 0f)
-                } finally {
-                    recycle()
-                }
-            }
-        if (basePx <= 0f) return
-        val expectedPx = (basePx * scale).coerceAtLeast(1f)
-
-        fun findFirstTextView(view: View): TextView? {
-            if (view is TextView) return view
-            val group = view as? ViewGroup ?: return null
-            for (i in 0 until group.childCount) {
-                val found = findFirstTextView(group.getChildAt(i))
-                if (found != null) return found
-            }
-            return null
-        }
-
-        val tabStrip = binding.tabLayout.getChildAt(0) as? ViewGroup ?: return
-        for (i in 0 until tabStrip.childCount) {
-            val tabView = tabStrip.getChildAt(i)
-            val tv = findFirstTextView(tabView) ?: continue
-            if (tv.textSize != expectedPx) tv.setTextSize(TypedValue.COMPLEX_UNIT_PX, expectedPx)
-        }
-    }
-
     fun onResume() {
         videoAdapter.invalidateSizing()
         keyAdapter.invalidateSizing()
@@ -664,7 +615,6 @@ class SearchRenderer(
         (binding.recyclerResults.layoutManager as? GridLayoutManager)?.spanCount = spanCountForCurrentTab()
         maybeConsumePendingFocusFirstResultCardFromTabSwitch()
         restoreMediaFocusIfNeeded()
-        scheduleTabTextScaleFix()
     }
 
     fun onShown() {
@@ -672,13 +622,11 @@ class SearchRenderer(
         // Popping the detail fragment makes it visible again without triggering onResume().
         maybeConsumePendingFocusFirstResultCardFromTabSwitch()
         restoreMediaFocusIfNeeded()
-        scheduleTabTextScaleFix()
     }
 
     fun release() {
         if (released) return
         released = true
-        pendingTabTextScaleFix = false
         resultsGridController?.release()
         resultsGridController = null
     }
@@ -1039,8 +987,10 @@ class SearchRenderer(
         val oldScale = state.lastAppliedUiScale ?: 1.0f
         if (newScale == oldScale) return
 
-        fun rescalePx(valuePx: Int): Int = (valuePx.toFloat() / oldScale * newScale).roundToInt()
-        fun rescalePxF(valuePx: Float): Float = (valuePx / oldScale * newScale)
+        val ratio = (newScale / oldScale).takeIf { it.isFinite() && it > 0f } ?: 1.0f
+        val rescaler = viewContext.uiScaler(ratio)
+        fun rescalePx(valuePx: Int): Int = rescaler.scaledPx(valuePx)
+        fun rescalePxF(valuePx: Float): Float = rescaler.scaledPxF(valuePx)
 
         fun rescaleLayoutSize(view: View, width: Boolean = true, height: Boolean = true) {
             val lp = view.layoutParams ?: return
@@ -1112,9 +1062,9 @@ class SearchRenderer(
         }
 
         fun rescaleCard(card: MaterialCardView) {
-            val radius = (card.radius / oldScale * newScale).coerceAtLeast(0f)
+            val radius = rescalePxF(card.radius).coerceAtLeast(0f)
             if (card.radius != radius) card.radius = radius
-            val stroke = (card.strokeWidth.toFloat() / oldScale * newScale).roundToInt().coerceAtLeast(0)
+            val stroke = rescalePx(card.strokeWidth).coerceAtLeast(0)
             if (card.strokeWidth != stroke) card.strokeWidth = stroke
         }
 
@@ -1164,7 +1114,6 @@ class SearchRenderer(
         rescaleMargins(binding.recyclerHot, start = false, top = false, end = true, bottom = false)
 
         rescaleMargins(binding.tabLayout, start = true, top = false, end = true, bottom = false)
-        enforceTabTextScale()
 
         run {
             val sortContainer = binding.btnSort.getChildAt(0) as? ViewGroup

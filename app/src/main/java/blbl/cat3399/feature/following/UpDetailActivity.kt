@@ -18,13 +18,12 @@ import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.tv.RemoteKeys
 import blbl.cat3399.core.ui.ActivityStackLimiter
 import blbl.cat3399.core.ui.AppToast
-import blbl.cat3399.core.ui.BackButtonSizingHelper
 import blbl.cat3399.core.ui.BaseActivity
 import blbl.cat3399.core.ui.DpadGridController
 import blbl.cat3399.core.ui.FocusTreeUtils
 import blbl.cat3399.core.ui.GridSpanPolicy
 import blbl.cat3399.core.ui.Immersive
-import blbl.cat3399.core.ui.UiScale
+import blbl.cat3399.core.ui.cloneInUserScale
 import blbl.cat3399.databinding.ActivityUpDetailBinding
 import blbl.cat3399.feature.login.QrLoginActivity
 import blbl.cat3399.feature.player.PlayerActivity
@@ -57,10 +56,9 @@ class UpDetailActivity : BaseActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         ActivityStackLimiter.register(group = ACTIVITY_STACK_GROUP, activity = this, maxDepth = ACTIVITY_STACK_MAX_DEPTH)
-        binding = ActivityUpDetailBinding.inflate(layoutInflater)
+        binding = ActivityUpDetailBinding.inflate(layoutInflater.cloneInUserScale(this))
         setContentView(binding.root)
         Immersive.apply(this, BiliClient.prefs.fullscreenEnabled)
-        applyUiMode()
 
         if (mid <= 0L) {
             AppToast.show(this, "无效的 UP 主 mid")
@@ -191,15 +189,6 @@ class UpDetailActivity : BaseActivity() {
         resetAndLoad()
     }
 
-    private fun applyUiMode() {
-        val sidebarScale = UiScale.factor(this, BiliClient.prefs.sidebarSize)
-        BackButtonSizingHelper.applySidebarSizing(
-            view = binding.btnBack,
-            resources = resources,
-            sidebarScale = sidebarScale,
-        )
-    }
-
     override fun onDestroy() {
         dpadGridController?.release()
         dpadGridController = null
@@ -210,8 +199,6 @@ class UpDetailActivity : BaseActivity() {
     override fun onResume() {
         super.onResume()
         Immersive.apply(this, BiliClient.prefs.fullscreenEnabled)
-        applyUiMode()
-        adapter.invalidateSizing()
         (binding.recycler.layoutManager as? GridLayoutManager)?.spanCount = spanCountForWidth()
         if (!binding.swipeRefresh.isRefreshing && adapter.itemCount == 0) {
             resetAndLoad()

@@ -1,19 +1,16 @@
 package blbl.cat3399.feature.live
 
-import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.ViewGroup.MarginLayoutParams
 import androidx.recyclerview.widget.RecyclerView
 import blbl.cat3399.R
 import blbl.cat3399.core.image.ImageLoader
 import blbl.cat3399.core.image.ImageUrl
 import blbl.cat3399.core.model.LiveRoomCard
-import blbl.cat3399.core.ui.UiScale
+import blbl.cat3399.core.ui.cloneInUserScale
 import blbl.cat3399.core.util.Format
 import blbl.cat3399.databinding.ItemLiveCardBinding
-import kotlin.math.roundToInt
 
 class LiveRoomAdapter(
     private val onClick: (position: Int, room: LiveRoomCard) -> Unit,
@@ -45,7 +42,12 @@ class LiveRoomAdapter(
     override fun getItemId(position: Int): Long = items[position].roomId
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Vh {
-        val binding = ItemLiveCardBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        val binding =
+            ItemLiveCardBinding.inflate(
+                LayoutInflater.from(parent.context).cloneInUserScale(parent.context),
+                parent,
+                false,
+            )
         return Vh(binding)
     }
 
@@ -54,15 +56,7 @@ class LiveRoomAdapter(
     override fun getItemCount(): Int = items.size
 
     class Vh(private val binding: ItemLiveCardBinding) : RecyclerView.ViewHolder(binding.root) {
-        private var lastUiScale: Float? = null
-
         fun bind(item: LiveRoomCard, onClick: (position: Int, room: LiveRoomCard) -> Unit) {
-            val uiScale = UiScale.factor(binding.root.context)
-            if (lastUiScale != uiScale) {
-                applySizing(uiScale)
-                lastUiScale = uiScale
-            }
-
             binding.tvTitle.text = item.title
             binding.tvSubtitle.text =
                 buildString {
@@ -80,98 +74,30 @@ class LiveRoomAdapter(
             binding.tvOnline.text = if (item.isLive) Format.count(item.online) else "-"
             binding.tvBadge.visibility = if (item.isLive) View.VISIBLE else View.GONE
             ImageLoader.loadInto(binding.ivCover, ImageUrl.cover(item.coverUrl))
+
+            applyStatsOverlayTranslation()
+
             binding.root.setOnClickListener {
                 val pos = bindingAdapterPosition.takeIf { it != RecyclerView.NO_POSITION } ?: return@setOnClickListener
                 onClick(pos, item)
             }
         }
 
-        private fun applySizing(uiScale: Float) {
-            fun px(id: Int): Int = binding.root.resources.getDimensionPixelSize(id)
-            fun pxF(id: Int): Float = binding.root.resources.getDimension(id)
+        private fun applyStatsOverlayTranslation() {
+            val res = binding.root.resources
+            val textMargin = res.getDimensionPixelSize(R.dimen.video_card_text_margin)
+            val padV = res.getDimensionPixelSize(R.dimen.video_card_duration_padding_v)
 
-            fun scaledPx(id: Int): Int = (px(id) * uiScale).roundToInt().coerceAtLeast(0)
-            fun scaledPxF(id: Int): Float = pxF(id) * uiScale
-
-            val margin = scaledPx(R.dimen.video_card_margin_tv)
-            val rootLp = binding.root.layoutParams as? MarginLayoutParams
-            if (rootLp != null) {
-                if (rootLp.leftMargin != margin || rootLp.topMargin != margin || rootLp.rightMargin != margin || rootLp.bottomMargin != margin) {
-                    rootLp.setMargins(margin, margin, margin, margin)
-                    binding.root.layoutParams = rootLp
-                }
+            fun applyShiftY() {
+                val overlayH = binding.llStats.height
+                val shiftY = (textMargin + padV) * 0.2f + overlayH * 0.2f
+                binding.llStats.translationY = shiftY
             }
 
-            val textMargin = scaledPx(R.dimen.video_card_text_margin_tv)
-            (binding.tvBadge.layoutParams as? MarginLayoutParams)?.let { lp ->
-                if (lp.leftMargin != textMargin || lp.topMargin != textMargin || lp.rightMargin != textMargin || lp.bottomMargin != textMargin) {
-                    lp.setMargins(textMargin, textMargin, textMargin, textMargin)
-                    binding.tvBadge.layoutParams = lp
-                }
-            }
-            (binding.llStats.layoutParams as? MarginLayoutParams)?.let { lp ->
-                if (lp.leftMargin != textMargin || lp.topMargin != textMargin || lp.rightMargin != textMargin || lp.bottomMargin != textMargin) {
-                    lp.setMargins(textMargin, textMargin, textMargin, textMargin)
-                    binding.llStats.layoutParams = lp
-                }
-            }
-            (binding.tvTitle.layoutParams as? MarginLayoutParams)?.let { lp ->
-                if (lp.leftMargin != textMargin || lp.topMargin != textMargin || lp.rightMargin != textMargin || lp.bottomMargin != textMargin) {
-                    lp.setMargins(textMargin, textMargin, textMargin, textMargin)
-                    binding.tvTitle.layoutParams = lp
-                }
-            }
-            (binding.tvSubtitle.layoutParams as? MarginLayoutParams)?.let { lp ->
-                if (lp.leftMargin != textMargin || lp.rightMargin != textMargin || lp.bottomMargin != textMargin) {
-                    lp.leftMargin = textMargin
-                    lp.rightMargin = textMargin
-                    lp.bottomMargin = textMargin
-                    binding.tvSubtitle.layoutParams = lp
-                }
-            }
-
-            val padH = scaledPx(R.dimen.video_card_duration_padding_h_tv)
-            val padV = scaledPx(R.dimen.video_card_duration_padding_v_tv)
-            binding.tvBadge.setPadding(padH, padV, padH, padV)
-            binding.llStats.setPadding(padH, padV, padH, padV)
-
-            run {
-                fun applyShiftY() {
-                    val overlayH = binding.llStats.height
-                    val shiftY = (textMargin + padV) * 0.2f + overlayH * 0.2f
-                    binding.llStats.translationY = shiftY
-                }
-
-                if (binding.llStats.height > 0) {
-                    applyShiftY()
-                } else {
-                    binding.root.post { applyShiftY() }
-                }
-            }
-
-            binding.tvBadge.setTextSize(
-                TypedValue.COMPLEX_UNIT_PX,
-                scaledPxF(R.dimen.video_card_duration_text_size_tv),
-            )
-            binding.tvOnline.setTextSize(
-                TypedValue.COMPLEX_UNIT_PX,
-                scaledPxF(R.dimen.video_card_stat_text_size_tv),
-            )
-            binding.tvTitle.setTextSize(
-                TypedValue.COMPLEX_UNIT_PX,
-                scaledPxF(R.dimen.video_card_title_text_size_tv),
-            )
-            binding.tvSubtitle.setTextSize(
-                TypedValue.COMPLEX_UNIT_PX,
-                scaledPxF(R.dimen.video_card_subtitle_text_size_tv),
-            )
-
-            val iconSize = scaledPx(R.dimen.video_card_stat_icon_size_tv)
-            val iconLp = binding.ivStatOnline.layoutParams
-            if (iconLp.width != iconSize || iconLp.height != iconSize) {
-                iconLp.width = iconSize
-                iconLp.height = iconSize
-                binding.ivStatOnline.layoutParams = iconLp
+            if (binding.llStats.height > 0) {
+                applyShiftY()
+            } else {
+                binding.root.post { applyShiftY() }
             }
         }
     }

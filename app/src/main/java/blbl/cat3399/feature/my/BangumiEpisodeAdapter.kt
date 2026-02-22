@@ -7,6 +7,7 @@ import androidx.recyclerview.widget.RecyclerView
 import blbl.cat3399.core.image.ImageLoader
 import blbl.cat3399.core.image.ImageUrl
 import blbl.cat3399.core.model.BangumiEpisode
+import blbl.cat3399.core.ui.cloneInUserScale
 import blbl.cat3399.core.util.pgcAccessBadgeTextOf
 import blbl.cat3399.databinding.ItemBangumiEpisodeBinding
 
@@ -21,6 +22,11 @@ class BangumiEpisodeAdapter(
         setHasStableIds(true)
     }
 
+    fun invalidateSizing() {
+        if (itemCount <= 0) return
+        notifyItemRangeChanged(0, itemCount)
+    }
+
     fun submit(list: List<BangumiEpisode>) {
         items.clear()
         items.addAll(list)
@@ -32,7 +38,12 @@ class BangumiEpisodeAdapter(
     override fun getItemId(position: Int): Long = items[position].epId
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Vh {
-        val binding = ItemBangumiEpisodeBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        val binding =
+            ItemBangumiEpisodeBinding.inflate(
+                LayoutInflater.from(parent.context).cloneInUserScale(parent.context),
+                parent,
+                false,
+            )
         return Vh(binding)
     }
 

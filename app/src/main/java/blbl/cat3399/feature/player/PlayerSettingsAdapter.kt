@@ -5,6 +5,7 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import blbl.cat3399.core.ui.cloneInUserScale
 import blbl.cat3399.databinding.ItemPlayerSettingBinding
 
 class PlayerSettingsAdapter(
@@ -22,12 +23,22 @@ class PlayerSettingsAdapter(
         setHasStableIds(true)
     }
 
+    fun invalidateSizing() {
+        if (itemCount <= 0) return
+        notifyItemRangeChanged(0, itemCount)
+    }
+
     fun submit(list: List<SettingItem>) {
         submitList(list.toList())
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Vh {
-        val binding = ItemPlayerSettingBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        val binding =
+            ItemPlayerSettingBinding.inflate(
+                LayoutInflater.from(parent.context).cloneInUserScale(parent.context),
+                parent,
+                false,
+            )
         return Vh(binding)
     }
 

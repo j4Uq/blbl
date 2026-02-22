@@ -6,6 +6,7 @@ import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewGroup.MarginLayoutParams
 import android.content.Intent
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
@@ -22,6 +23,9 @@ import blbl.cat3399.core.ui.AppToast
 import blbl.cat3399.core.ui.BackButtonSizingHelper
 import blbl.cat3399.core.ui.FocusTreeUtils
 import blbl.cat3399.core.ui.UiScale
+import blbl.cat3399.core.ui.setPaddingIfChanged
+import blbl.cat3399.core.ui.setTextSizePxIfChanged
+import blbl.cat3399.core.ui.uiScaler
 import blbl.cat3399.core.ui.postDelayedIfAlive
 import blbl.cat3399.core.ui.postIfAlive
 import blbl.cat3399.core.util.Format
@@ -49,6 +53,7 @@ class MyBangumiDetailFragment : Fragment(), RefreshKeyHandler {
     private var currentEpisodes: List<BangumiEpisode> = emptyList()
     private var continueEpisode: BangumiEpisode? = null
     private var episodeOrderReversed: Boolean = false
+    private var lastAppliedSizingScale: Float? = null
     private var resolvedSeasonId: Long? = null
     private var pendingAutoFocusFirstEpisode: Boolean = true
     private var autoFocusAttempts: Int = 0
@@ -56,6 +61,35 @@ class MyBangumiDetailFragment : Fragment(), RefreshKeyHandler {
     private var pendingAutoFocusPrimary: Boolean = true
     private var loadJob: Job? = null
     private var episodeChildAttachListener: RecyclerView.OnChildAttachStateChangeListener? = null
+
+    private var baseCoverSize: IntArray? = null
+    private var baseCoverMargins: IntArray? = null
+
+    private var baseTitleMargins: IntArray? = null
+    private var baseTitleTextSizePx: Float? = null
+    private var baseMetaMargins: IntArray? = null
+    private var baseMetaTextSizePx: Float? = null
+    private var baseDescMargins: IntArray? = null
+    private var baseDescTextSizePx: Float? = null
+
+    private var basePrimaryMargins: IntArray? = null
+    private var basePrimaryTextSizePx: Float? = null
+    private var baseSecondaryMargins: IntArray? = null
+    private var baseSecondaryTextSizePx: Float? = null
+
+    private var baseEpisodeHeaderMargins: IntArray? = null
+    private var baseEpisodeHeaderTextSizePx: Float? = null
+
+    private var baseEpisodeOrderHeight: Int? = null
+    private var baseEpisodeOrderMargins: IntArray? = null
+    private var baseEpisodeOrderRadiusPx: Float? = null
+    private var baseEpisodeOrderStrokeWidthPx: Int? = null
+    private var baseEpisodeOrderContentPadding: IntArray? = null
+    private var baseEpisodeOrderIconSize: Int? = null
+    private var baseEpisodeOrderIconMarginEnd: Int? = null
+    private var baseEpisodeOrderTextSizePx: Float? = null
+
+    private var baseEpisodeRecyclerPadding: IntArray? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -76,6 +110,7 @@ class MyBangumiDetailFragment : Fragment(), RefreshKeyHandler {
         }
         binding.btnSecondary.text = if (isDrama) "已追剧" else "已追番"
         applyBackButtonSizing()
+        applyHeaderSizing(uiScale = UiScale.factor(requireContext()))
 
         updateEpisodeOrderUi()
         binding.btnEpisodeOrder.setOnClickListener {
@@ -129,12 +164,245 @@ class MyBangumiDetailFragment : Fragment(), RefreshKeyHandler {
 
     private fun applyBackButtonSizing() {
         val b = _binding ?: return
-        val sidebarScale = UiScale.factor(requireContext(), BiliClient.prefs.sidebarSize)
+        val sidebarScale = UiScale.factor(requireContext())
         BackButtonSizingHelper.applySidebarSizing(
             view = b.btnBack,
             resources = b.root.resources,
             sidebarScale = sidebarScale,
         )
+    }
+
+    private fun applyHeaderSizing(uiScale: Float) {
+        val b = _binding ?: return
+        val scale = uiScale.takeIf { it.isFinite() && it > 0f } ?: 1.0f
+        if (lastAppliedSizingScale == scale) return
+
+        val scaler = requireContext().uiScaler(scale)
+        fun scaled(valuePx: Int, minPx: Int = 0): Int = scaler.scaledPx(valuePx, minPx = minPx)
+        fun scaledF(valuePx: Float, minPx: Float = 0f): Float = scaler.scaledPxF(valuePx, minPx = minPx)
+
+        b.ivCover.layoutParams?.let { lp ->
+            val base =
+                baseCoverSize
+                    ?: intArrayOf(lp.width, lp.height).also { baseCoverSize = it }
+            val w = scaled(base[0], minPx = 1)
+            val h = scaled(base[1], minPx = 1)
+            if (lp.width != w || lp.height != h) {
+                lp.width = w
+                lp.height = h
+                b.ivCover.layoutParams = lp
+            }
+        }
+        (b.ivCover.layoutParams as? MarginLayoutParams)?.let { lp ->
+            val base =
+                baseCoverMargins
+                    ?: intArrayOf(lp.marginStart, lp.topMargin, lp.marginEnd, lp.bottomMargin).also { baseCoverMargins = it }
+            val ms = scaled(base[0]).coerceAtLeast(0)
+            val mt = scaled(base[1]).coerceAtLeast(0)
+            val me = scaled(base[2]).coerceAtLeast(0)
+            val mb = scaled(base[3]).coerceAtLeast(0)
+            if (lp.marginStart != ms || lp.topMargin != mt || lp.marginEnd != me || lp.bottomMargin != mb) {
+                lp.marginStart = ms
+                lp.topMargin = mt
+                lp.marginEnd = me
+                lp.bottomMargin = mb
+                b.ivCover.layoutParams = lp
+            }
+        }
+
+        (b.tvTitle.layoutParams as? MarginLayoutParams)?.let { lp ->
+            val base =
+                baseTitleMargins
+                    ?: intArrayOf(lp.marginStart, lp.topMargin, lp.marginEnd, lp.bottomMargin).also { baseTitleMargins = it }
+            val ms = scaled(base[0]).coerceAtLeast(0)
+            val mt = scaled(base[1]).coerceAtLeast(0)
+            val me = scaled(base[2]).coerceAtLeast(0)
+            val mb = scaled(base[3]).coerceAtLeast(0)
+            if (lp.marginStart != ms || lp.topMargin != mt || lp.marginEnd != me || lp.bottomMargin != mb) {
+                lp.marginStart = ms
+                lp.topMargin = mt
+                lp.marginEnd = me
+                lp.bottomMargin = mb
+                b.tvTitle.layoutParams = lp
+            }
+        }
+        val baseTitleTs = baseTitleTextSizePx ?: b.tvTitle.textSize.also { baseTitleTextSizePx = it }
+        b.tvTitle.setTextSizePxIfChanged(scaledF(baseTitleTs, minPx = 1f))
+
+        (b.tvMeta.layoutParams as? MarginLayoutParams)?.let { lp ->
+            val base =
+                baseMetaMargins
+                    ?: intArrayOf(lp.marginStart, lp.topMargin, lp.marginEnd, lp.bottomMargin).also { baseMetaMargins = it }
+            val ms = scaled(base[0]).coerceAtLeast(0)
+            val mt = scaled(base[1]).coerceAtLeast(0)
+            val me = scaled(base[2]).coerceAtLeast(0)
+            val mb = scaled(base[3]).coerceAtLeast(0)
+            if (lp.marginStart != ms || lp.topMargin != mt || lp.marginEnd != me || lp.bottomMargin != mb) {
+                lp.marginStart = ms
+                lp.topMargin = mt
+                lp.marginEnd = me
+                lp.bottomMargin = mb
+                b.tvMeta.layoutParams = lp
+            }
+        }
+        val baseMetaTs = baseMetaTextSizePx ?: b.tvMeta.textSize.also { baseMetaTextSizePx = it }
+        b.tvMeta.setTextSizePxIfChanged(scaledF(baseMetaTs, minPx = 1f))
+
+        (b.tvDesc.layoutParams as? MarginLayoutParams)?.let { lp ->
+            val base =
+                baseDescMargins
+                    ?: intArrayOf(lp.marginStart, lp.topMargin, lp.marginEnd, lp.bottomMargin).also { baseDescMargins = it }
+            val ms = scaled(base[0]).coerceAtLeast(0)
+            val mt = scaled(base[1]).coerceAtLeast(0)
+            val me = scaled(base[2]).coerceAtLeast(0)
+            val mb = scaled(base[3]).coerceAtLeast(0)
+            if (lp.marginStart != ms || lp.topMargin != mt || lp.marginEnd != me || lp.bottomMargin != mb) {
+                lp.marginStart = ms
+                lp.topMargin = mt
+                lp.marginEnd = me
+                lp.bottomMargin = mb
+                b.tvDesc.layoutParams = lp
+            }
+        }
+        val baseDescTs = baseDescTextSizePx ?: b.tvDesc.textSize.also { baseDescTextSizePx = it }
+        b.tvDesc.setTextSizePxIfChanged(scaledF(baseDescTs, minPx = 1f))
+
+        (b.btnPrimary.layoutParams as? MarginLayoutParams)?.let { lp ->
+            val base =
+                basePrimaryMargins
+                    ?: intArrayOf(lp.marginStart, lp.topMargin, lp.marginEnd, lp.bottomMargin).also { basePrimaryMargins = it }
+            val ms = scaled(base[0]).coerceAtLeast(0)
+            val mt = scaled(base[1]).coerceAtLeast(0)
+            val me = scaled(base[2]).coerceAtLeast(0)
+            val mb = scaled(base[3]).coerceAtLeast(0)
+            if (lp.marginStart != ms || lp.topMargin != mt || lp.marginEnd != me || lp.bottomMargin != mb) {
+                lp.marginStart = ms
+                lp.topMargin = mt
+                lp.marginEnd = me
+                lp.bottomMargin = mb
+                b.btnPrimary.layoutParams = lp
+            }
+        }
+        val basePrimaryTs = basePrimaryTextSizePx ?: b.btnPrimary.textSize.also { basePrimaryTextSizePx = it }
+        b.btnPrimary.setTextSizePxIfChanged(scaledF(basePrimaryTs, minPx = 1f))
+
+        (b.btnSecondary.layoutParams as? MarginLayoutParams)?.let { lp ->
+            val base =
+                baseSecondaryMargins
+                    ?: intArrayOf(lp.marginStart, lp.topMargin, lp.marginEnd, lp.bottomMargin).also { baseSecondaryMargins = it }
+            val ms = scaled(base[0]).coerceAtLeast(0)
+            val mt = scaled(base[1]).coerceAtLeast(0)
+            val me = scaled(base[2]).coerceAtLeast(0)
+            val mb = scaled(base[3]).coerceAtLeast(0)
+            if (lp.marginStart != ms || lp.topMargin != mt || lp.marginEnd != me || lp.bottomMargin != mb) {
+                lp.marginStart = ms
+                lp.topMargin = mt
+                lp.marginEnd = me
+                lp.bottomMargin = mb
+                b.btnSecondary.layoutParams = lp
+            }
+        }
+        val baseSecondaryTs = baseSecondaryTextSizePx ?: b.btnSecondary.textSize.also { baseSecondaryTextSizePx = it }
+        b.btnSecondary.setTextSizePxIfChanged(scaledF(baseSecondaryTs, minPx = 1f))
+
+        (b.tvEpisodeHeader.layoutParams as? MarginLayoutParams)?.let { lp ->
+            val base =
+                baseEpisodeHeaderMargins
+                    ?: intArrayOf(lp.marginStart, lp.topMargin, lp.marginEnd, lp.bottomMargin).also { baseEpisodeHeaderMargins = it }
+            val ms = scaled(base[0]).coerceAtLeast(0)
+            val mt = scaled(base[1]).coerceAtLeast(0)
+            val me = scaled(base[2]).coerceAtLeast(0)
+            val mb = scaled(base[3]).coerceAtLeast(0)
+            if (lp.marginStart != ms || lp.topMargin != mt || lp.marginEnd != me || lp.bottomMargin != mb) {
+                lp.marginStart = ms
+                lp.topMargin = mt
+                lp.marginEnd = me
+                lp.bottomMargin = mb
+                b.tvEpisodeHeader.layoutParams = lp
+            }
+        }
+        val baseHeaderTs = baseEpisodeHeaderTextSizePx ?: b.tvEpisodeHeader.textSize.also { baseEpisodeHeaderTextSizePx = it }
+        b.tvEpisodeHeader.setTextSizePxIfChanged(scaledF(baseHeaderTs, minPx = 1f))
+
+        (b.btnEpisodeOrder.layoutParams as? MarginLayoutParams)?.let { lp ->
+            val base =
+                baseEpisodeOrderMargins
+                    ?: intArrayOf(lp.marginStart, lp.topMargin, lp.marginEnd, lp.bottomMargin).also { baseEpisodeOrderMargins = it }
+            val ms = scaled(base[0]).coerceAtLeast(0)
+            val mt = scaled(base[1]).coerceAtLeast(0)
+            val me = scaled(base[2]).coerceAtLeast(0)
+            val mb = scaled(base[3]).coerceAtLeast(0)
+            if (lp.marginStart != ms || lp.topMargin != mt || lp.marginEnd != me || lp.bottomMargin != mb) {
+                lp.marginStart = ms
+                lp.topMargin = mt
+                lp.marginEnd = me
+                lp.bottomMargin = mb
+                b.btnEpisodeOrder.layoutParams = lp
+            }
+        }
+        b.btnEpisodeOrder.layoutParams?.let { lp ->
+            val baseH = baseEpisodeOrderHeight ?: lp.height.takeIf { it > 0 }?.also { baseEpisodeOrderHeight = it }
+            if (baseH != null) {
+                val h = scaled(baseH, minPx = 1)
+                if (lp.height != h) {
+                    lp.height = h
+                    b.btnEpisodeOrder.layoutParams = lp
+                }
+            }
+        }
+        val baseRadius = baseEpisodeOrderRadiusPx ?: b.btnEpisodeOrder.radius.also { baseEpisodeOrderRadiusPx = it }
+        val radius = scaledF(baseRadius).coerceAtLeast(0f)
+        if (b.btnEpisodeOrder.radius != radius) b.btnEpisodeOrder.radius = radius
+        val baseStroke = baseEpisodeOrderStrokeWidthPx ?: b.btnEpisodeOrder.strokeWidth.also { baseEpisodeOrderStrokeWidthPx = it }
+        val stroke = scaled(baseStroke).coerceAtLeast(0)
+        if (b.btnEpisodeOrder.strokeWidth != stroke) b.btnEpisodeOrder.strokeWidth = stroke
+
+        val content = b.episodeOrderContent
+        val basePad =
+            baseEpisodeOrderContentPadding
+                ?: intArrayOf(content.paddingLeft, content.paddingTop, content.paddingRight, content.paddingBottom).also { baseEpisodeOrderContentPadding = it }
+        content.setPaddingIfChanged(
+            scaled(basePad[0]).coerceAtLeast(0),
+            scaled(basePad[1]).coerceAtLeast(0),
+            scaled(basePad[2]).coerceAtLeast(0),
+            scaled(basePad[3]).coerceAtLeast(0),
+        )
+
+        b.ivEpisodeOrderIcon.layoutParams?.let { lp ->
+            val base = baseEpisodeOrderIconSize ?: lp.width.takeIf { it > 0 }?.also { baseEpisodeOrderIconSize = it }
+            if (base != null) {
+                val size = scaled(base, minPx = 1)
+                if (lp.width != size || lp.height != size) {
+                    lp.width = size
+                    lp.height = size
+                    b.ivEpisodeOrderIcon.layoutParams = lp
+                }
+            }
+        }
+        (b.ivEpisodeOrderIcon.layoutParams as? MarginLayoutParams)?.let { lp ->
+            val base = baseEpisodeOrderIconMarginEnd ?: lp.marginEnd.also { baseEpisodeOrderIconMarginEnd = it }
+            val me = scaled(base).coerceAtLeast(0)
+            if (lp.marginEnd != me) {
+                lp.marginEnd = me
+                b.ivEpisodeOrderIcon.layoutParams = lp
+            }
+        }
+
+        val baseOrderTs = baseEpisodeOrderTextSizePx ?: b.tvEpisodeOrder.textSize.also { baseEpisodeOrderTextSizePx = it }
+        b.tvEpisodeOrder.setTextSizePxIfChanged(scaledF(baseOrderTs, minPx = 1f))
+
+        val recycler = b.recyclerEpisodes
+        val baseRecyclerPad =
+            baseEpisodeRecyclerPadding
+                ?: intArrayOf(recycler.paddingLeft, recycler.paddingTop, recycler.paddingRight, recycler.paddingBottom).also { baseEpisodeRecyclerPadding = it }
+        recycler.setPaddingIfChanged(
+            scaled(baseRecyclerPad[0]).coerceAtLeast(0),
+            scaled(baseRecyclerPad[1]).coerceAtLeast(0),
+            scaled(baseRecyclerPad[2]).coerceAtLeast(0),
+            scaled(baseRecyclerPad[3]).coerceAtLeast(0),
+        )
+
+        lastAppliedSizingScale = scale
     }
 
     override fun handleRefreshKey(): Boolean {

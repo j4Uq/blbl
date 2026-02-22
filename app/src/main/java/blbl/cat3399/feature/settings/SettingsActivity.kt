@@ -6,6 +6,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.recyclerview.widget.LinearLayoutManager
 import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.ui.BaseActivity
+import blbl.cat3399.core.ui.cloneInUserScale
 import blbl.cat3399.core.ui.Immersive
 import blbl.cat3399.databinding.ActivitySettingsBinding
 
@@ -41,7 +42,7 @@ class SettingsActivity : BaseActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivitySettingsBinding.inflate(layoutInflater)
+        binding = ActivitySettingsBinding.inflate(layoutInflater.cloneInUserScale(this))
         setContentView(binding.root)
         Immersive.apply(this, BiliClient.prefs.fullscreenEnabled)
 
@@ -78,14 +79,12 @@ class SettingsActivity : BaseActivity() {
             )
         interactionHandler.renderer = renderer
 
-        renderer.applyUiMode()
         renderer.installFocusListener()
         renderer.showSection(0)
     }
 
     override fun onResume() {
         super.onResume()
-        renderer.applyUiMode()
         renderer.ensureInitialFocus()
     }
 

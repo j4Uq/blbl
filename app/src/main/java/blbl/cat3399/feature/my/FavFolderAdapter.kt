@@ -7,6 +7,7 @@ import blbl.cat3399.R
 import blbl.cat3399.core.image.ImageLoader
 import blbl.cat3399.core.image.ImageUrl
 import blbl.cat3399.core.model.FavFolder
+import blbl.cat3399.core.ui.cloneInUserScale
 import blbl.cat3399.databinding.ItemFavFolderBinding
 
 class FavFolderAdapter(
@@ -18,6 +19,11 @@ class FavFolderAdapter(
         setHasStableIds(true)
     }
 
+    fun invalidateSizing() {
+        if (itemCount <= 0) return
+        notifyItemRangeChanged(0, itemCount)
+    }
+
     fun submit(list: List<FavFolder>) {
         items.clear()
         items.addAll(list)
@@ -27,7 +33,12 @@ class FavFolderAdapter(
     override fun getItemId(position: Int): Long = items[position].mediaId
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Vh {
-        val binding = ItemFavFolderBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        val binding =
+            ItemFavFolderBinding.inflate(
+                LayoutInflater.from(parent.context).cloneInUserScale(parent.context),
+                parent,
+                false,
+            )
         return Vh(binding)
     }
 

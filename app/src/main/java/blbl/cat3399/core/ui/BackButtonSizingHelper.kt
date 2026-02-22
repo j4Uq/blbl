@@ -10,8 +10,8 @@ object BackButtonSizingHelper {
         view: View,
         resources: Resources,
         sidebarScale: Float,
-        sizeDimenRes: Int = R.dimen.sidebar_settings_size_tv,
-        paddingDimenRes: Int = R.dimen.sidebar_settings_padding_tv,
+        sizeDimenRes: Int = R.dimen.sidebar_settings_size,
+        paddingDimenRes: Int = R.dimen.sidebar_settings_padding,
     ) {
         val sizePx =
             (resources.getDimensionPixelSize(sizeDimenRes) * sidebarScale)

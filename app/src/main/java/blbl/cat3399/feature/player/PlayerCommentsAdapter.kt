@@ -12,6 +12,7 @@ import blbl.cat3399.R
 import blbl.cat3399.core.emote.EmoteSpannable
 import blbl.cat3399.core.image.ImageLoader
 import blbl.cat3399.core.note.NoteImageRepository
+import blbl.cat3399.core.ui.cloneInUserScale
 import blbl.cat3399.core.util.Format
 import blbl.cat3399.databinding.ItemPlayerCommentBinding
 
@@ -53,6 +54,11 @@ class PlayerCommentsAdapter(
         setHasStableIds(true)
     }
 
+    fun invalidateSizing() {
+        if (itemCount <= 0) return
+        notifyItemRangeChanged(0, itemCount)
+    }
+
     fun setItems(list: List<Item>) {
         items.clear()
         items.addAll(list)
@@ -82,7 +88,12 @@ class PlayerCommentsAdapter(
     override fun getItemId(position: Int): Long = items[position].key.hashCode().toLong()
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Vh {
-        val binding = ItemPlayerCommentBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        val binding =
+            ItemPlayerCommentBinding.inflate(
+                LayoutInflater.from(parent.context).cloneInUserScale(parent.context),
+                parent,
+                false,
+            )
         return Vh(binding)
     }
 

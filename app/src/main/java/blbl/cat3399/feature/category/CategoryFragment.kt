@@ -67,8 +67,9 @@ class CategoryFragment : Fragment(), VideoGridTabSwitchFocusHost, BackPressHandl
                 }
             },
         )
-        val tabLayout = binding.tabLayout
-        tabLayout.postIfAlive(isAlive = { _binding != null }) {
+        val b = binding
+        val tabLayout = b.tabLayout
+        tabLayout.postIfAlive(isAlive = { _binding === b }) {
             tabLayout.enableDpadTabFocus(selectOnFocusProvider = { BiliClient.prefs.tabSwitchFollowsFocus }) { position ->
                 val zone = zones.getOrNull(position)
                 AppLog.d(
@@ -103,6 +104,10 @@ class CategoryFragment : Fragment(), VideoGridTabSwitchFocusHost, BackPressHandl
                 }
             }
         binding.viewPager.registerOnPageChangeCallback(pageCallback!!)
+    }
+
+    override fun onResume() {
+        super.onResume()
     }
 
     private fun refreshCurrentPageFromTabReselect(): Boolean {

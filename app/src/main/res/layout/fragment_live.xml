@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:background="@color/blbl_bg">
 
-    <com.google.android.material.tabs.TabLayout
+    <blbl.cat3399.core.ui.UserScaleTabLayout
         android:id="@+id/tab_layout"
         style="@style/Widget.Blbl.TabLayout"
         android:layout_width="0dp"

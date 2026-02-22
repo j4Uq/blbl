@@ -8,7 +8,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.ViewGroup.MarginLayoutParams
 import android.view.ViewTreeObserver
-import android.widget.LinearLayout
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.lifecycle.lifecycleScope
@@ -26,12 +25,11 @@ import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.prefs.AppPrefs
 import blbl.cat3399.core.tv.RemoteKeys
 import blbl.cat3399.core.ui.AppToast
-import blbl.cat3399.core.ui.BackButtonSizingHelper
 import blbl.cat3399.core.ui.BaseActivity
 import blbl.cat3399.core.ui.FocusReturn
 import blbl.cat3399.core.ui.FocusTreeUtils
 import blbl.cat3399.core.ui.Immersive
-import blbl.cat3399.core.ui.UiScale
+import blbl.cat3399.core.ui.cloneInUserScale
 import blbl.cat3399.databinding.ActivityMainBinding
 import blbl.cat3399.databinding.DialogUserInfoBinding
 import blbl.cat3399.feature.category.CategoryFragment
@@ -52,7 +50,6 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.lang.ref.WeakReference
 import java.util.Locale
-import kotlin.math.roundToInt
 
 class MainActivity : BaseActivity() {
     private lateinit var binding: ActivityMainBinding
@@ -70,13 +67,14 @@ class MainActivity : BaseActivity() {
     private var userInfoLoadJob: Job? = null
     private var lastBackAtMs: Long = 0L
 
+    private var baseUserInfoCardWidth: Int? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         needForceInitialSidebarFocus = savedInstanceState == null
-        binding = ActivityMainBinding.inflate(layoutInflater)
+        binding = ActivityMainBinding.inflate(layoutInflater.cloneInUserScale(this))
         setContentView(binding.root)
         Immersive.apply(this, BiliClient.prefs.fullscreenEnabled)
-        applyUiMode()
         launchNavId = resolveLaunchNavId()
 
         userInfoOverlay = binding.userInfoOverlay
@@ -183,7 +181,6 @@ class MainActivity : BaseActivity() {
 
     override fun onResume() {
         super.onResume()
-        applyUiMode()
         restoreFocusAfterResume()
         forceInitialSidebarFocusIfNeeded()
         ensureInitialFocus()
@@ -308,9 +305,25 @@ class MainActivity : BaseActivity() {
 
     private fun isUserInfoOverlayVisible(): Boolean = userInfoOverlay.root.visibility == View.VISIBLE
 
+    private fun clampUserInfoOverlayCardWidth() {
+        val lp = userInfoOverlay.card.layoutParams as? MarginLayoutParams ?: return
+        val baseWidth =
+            baseUserInfoCardWidth
+                ?: lp.width.takeIf { it > 0 }?.also { baseUserInfoCardWidth = it }
+                ?: return
+
+        val maxWidth = (resources.displayMetrics.widthPixels - lp.leftMargin - lp.rightMargin).coerceAtLeast(1)
+        val clamped = baseWidth.coerceAtMost(maxWidth)
+        if (lp.width != clamped) {
+            lp.width = clamped
+            userInfoOverlay.card.layoutParams = lp
+        }
+    }
+
     private fun showUserInfoOverlay() {
         if (isUserInfoOverlayVisible()) return
         userInfoReturnFocus.capture(currentFocus)
+        clampUserInfoOverlayCardWidth()
 
         binding.sidebar.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
         binding.mainContainer.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
@@ -552,103 +565,6 @@ class MainActivity : BaseActivity() {
         }
     }
 
-    private fun applyUiMode() {
-        val sizePref = BiliClient.prefs.sidebarSize
-        val sidebarScale = UiScale.factor(this, sizePref)
-        val sidebarWidthScale = UiScale.deviceFactor(this)
-        if (::navAdapter.isInitialized) {
-            navAdapter.setSidebarScale(sidebarScale)
-        }
-
-        val widthPx =
-            (resources.getDimensionPixelSize(
-                sidebarWidthDimenFor(sizePref),
-            ) * sidebarWidthScale).roundToInt().coerceAtLeast(1)
-        val lp = binding.sidebar.layoutParams
-        if (lp.width != widthPx) {
-            lp.width = widthPx
-            binding.sidebar.layoutParams = lp
-        }
-
-        applySidebarSizing(sidebarScale)
-    }
-
-    private fun applySidebarSizing(sidebarScale: Float) {
-        fun px(id: Int): Int = resources.getDimensionPixelSize(id)
-        fun pxF(id: Int): Float = resources.getDimension(id)
-        val scale = sidebarScale.coerceIn(0.60f, 1.40f)
-        fun scaledPx(id: Int): Int = (px(id) * scale).roundToInt()
-        fun scaledPxF(id: Int): Float = pxF(id) * scale
-
-        val userSize = scaledPx(R.dimen.sidebar_user_size_tv)
-        setSize(binding.ivSidebarUser, userSize, userSize)
-        setTopMargin(binding.ivSidebarUser, scaledPx(R.dimen.sidebar_user_margin_top_tv))
-
-        val loginSize = scaledPx(R.dimen.sidebar_login_size_tv)
-        setSize(binding.btnSidebarLogin, loginSize, loginSize)
-        setTopMargin(binding.btnSidebarLogin, scaledPx(R.dimen.sidebar_login_margin_top_tv))
-        binding.btnSidebarLogin.setTextSize(
-            android.util.TypedValue.COMPLEX_UNIT_PX,
-            scaledPxF(R.dimen.sidebar_login_text_size_tv),
-        )
-
-        setTopMargin(binding.recyclerSidebar, scaledPx(R.dimen.sidebar_nav_margin_top_tv))
-
-        val settingsSize = scaledPx(R.dimen.sidebar_settings_size_tv)
-        val settingsPadding = scaledPx(R.dimen.sidebar_settings_padding_tv)
-        BackButtonSizingHelper.applySizeAndPadding(
-            view = binding.btnSidebarSettings,
-            sizePx = settingsSize,
-            paddingPx = settingsPadding,
-        )
-        setBottomMargin(
-            binding.btnSidebarSettings,
-            scaledPx(R.dimen.sidebar_settings_margin_bottom_tv),
-        )
-    }
-
-    private fun setSize(view: View, widthPx: Int, heightPx: Int) {
-        val lp = view.layoutParams ?: return
-        if (lp.width == widthPx && lp.height == heightPx) return
-        lp.width = widthPx
-        lp.height = heightPx
-        view.layoutParams = lp
-    }
-
-    private fun setTopMargin(view: View, topMarginPx: Int) {
-        val lp = view.layoutParams
-        when (lp) {
-            is LinearLayout.LayoutParams -> {
-                if (lp.topMargin == topMarginPx) return
-                lp.topMargin = topMarginPx
-                view.layoutParams = lp
-            }
-
-            is MarginLayoutParams -> {
-                if (lp.topMargin == topMarginPx) return
-                lp.topMargin = topMarginPx
-                view.layoutParams = lp
-            }
-        }
-    }
-
-    private fun setBottomMargin(view: View, bottomMarginPx: Int) {
-        val lp = view.layoutParams
-        when (lp) {
-            is LinearLayout.LayoutParams -> {
-                if (lp.bottomMargin == bottomMarginPx) return
-                lp.bottomMargin = bottomMarginPx
-                view.layoutParams = lp
-            }
-
-            is MarginLayoutParams -> {
-                if (lp.bottomMargin == bottomMarginPx) return
-                lp.bottomMargin = bottomMarginPx
-                view.layoutParams = lp
-            }
-        }
-    }
-
     private fun ensureInitialFocus() {
         if (currentFocus != null) return
         val pos = navAdapter.selectedAdapterPosition().takeIf { it >= 0 } ?: 0
@@ -702,14 +618,6 @@ class MainActivity : BaseActivity() {
     }
 
     private fun isInSidebar(view: View): Boolean = FocusTreeUtils.isDescendantOf(view, binding.sidebar)
-
-    private fun sidebarWidthDimenFor(prefValue: String): Int {
-        return when (prefValue) {
-            AppPrefs.SIDEBAR_SIZE_SMALL -> R.dimen.sidebar_width_tv_small
-            AppPrefs.SIDEBAR_SIZE_LARGE -> R.dimen.sidebar_width_tv_large
-            else -> R.dimen.sidebar_width_tv
-        }
-    }
 
     private fun isInMainContainer(view: View): Boolean = FocusTreeUtils.isDescendantOf(view, binding.mainContainer)
 

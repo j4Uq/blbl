@@ -55,12 +55,10 @@ object SettingsText {
             else -> "推荐"
         }
 
-    fun sidebarSizeText(prefValue: String): String =
-        when (prefValue) {
-            blbl.cat3399.core.prefs.AppPrefs.SIDEBAR_SIZE_SMALL -> "小"
-            blbl.cat3399.core.prefs.AppPrefs.SIDEBAR_SIZE_LARGE -> "大"
-            else -> "中"
-        }
+    fun uiScaleFactorText(factor: Float): String {
+        val v = factor.takeIf { it.isFinite() } ?: 1.0f
+        return String.format(Locale.US, "%.2fx", v)
+    }
 
     fun cdnText(code: String): String =
         when (code) {

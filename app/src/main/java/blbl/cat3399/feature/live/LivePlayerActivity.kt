@@ -29,10 +29,8 @@ import blbl.cat3399.core.ui.DoubleBackToExitHandler
 import blbl.cat3399.core.ui.FocusReturn
 import blbl.cat3399.core.ui.Immersive
 import blbl.cat3399.core.ui.SingleChoiceDialog
-import blbl.cat3399.core.ui.UiScale
 import blbl.cat3399.databinding.ActivityPlayerBinding
 import blbl.cat3399.databinding.DialogLiveChatBinding
-import blbl.cat3399.feature.player.PlayerContentAutoScale
 import blbl.cat3399.feature.player.PlayerOsdSizing
 import blbl.cat3399.feature.player.PlayerSettingsAdapter
 import blbl.cat3399.feature.player.PlayerUiMode
@@ -44,9 +42,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.Locale
-import kotlin.math.roundToInt
 
 class LivePlayerActivity : BaseActivity() {
+    override fun shouldRecreateOnUiScaleChange(): Boolean = false
+
     private lateinit var binding: ActivityPlayerBinding
     private var player: ExoPlayer? = null
     private val settingsPanelReturnFocus = FocusReturn()
@@ -60,9 +59,6 @@ class LivePlayerActivity : BaseActivity() {
     private var autoFailoverSwitchCount: Int = 0
     private var autoFailoverLastSwitchAtMs: Long = 0L
     private var autoFailoverInFlight: Boolean = false
-    private var fixedAutoScale: Float? = null
-    private var fixedAutoScaleWindowWidth: Int = -1
-    private var fixedAutoScaleWindowHeight: Int = -1
 
     private val doubleBackToExit by lazy {
         DoubleBackToExitHandler(context = this, windowMs = BACK_DOUBLE_PRESS_WINDOW_MS) {
@@ -99,21 +95,7 @@ class LivePlayerActivity : BaseActivity() {
         binding = ActivityPlayerBinding.bind(root)
         setContentView(binding.root)
         Immersive.apply(this, prefs.fullscreenEnabled)
-        recomputeFixedAutoScaleIfWindowChanged(force = false)
-        PlayerUiMode.applyLive(this, binding, fixedAutoScale = fixedAutoScale)
-
-        // Re-apply only when real window size changes; keep panel open/close from affecting OSD scale.
-        binding.playerView.addOnLayoutChangeListener { _, l, t, r, b, ol, ot, or, ob ->
-            if (isFinishing) return@addOnLayoutChangeListener
-            val w = r - l
-            val h = b - t
-            val ow = or - ol
-            val oh = ob - ot
-            if (w <= 0 || h <= 0 || (w == ow && h == oh)) return@addOnLayoutChangeListener
-            if (recomputeFixedAutoScaleIfWindowChanged(force = false)) {
-                PlayerUiMode.applyLive(this, binding, fixedAutoScale = fixedAutoScale)
-            }
-        }
+        PlayerUiMode.applyLive(this, binding)
 
         roomId = intent.getLongExtra(EXTRA_ROOM_ID, 0L)
         roomTitle = intent.getStringExtra(EXTRA_TITLE).orEmpty()
@@ -219,23 +201,7 @@ class LivePlayerActivity : BaseActivity() {
     override fun onResume() {
         super.onResume()
         PlayerOsdSizing.applyTheme(this)
-        recomputeFixedAutoScaleIfWindowChanged(force = false)
-        PlayerUiMode.applyLive(this, binding, fixedAutoScale = fixedAutoScale)
-    }
-
-    private fun recomputeFixedAutoScaleIfWindowChanged(force: Boolean): Boolean {
-        val windowWidth = binding.root.width
-        val windowHeight = binding.root.height
-        val playerWidth = binding.playerView.width
-        val playerHeight = binding.playerView.height
-        if (windowWidth <= 0 || windowHeight <= 0 || playerWidth <= 0 || playerHeight <= 0) return false
-        if (!force && fixedAutoScale != null && windowWidth == fixedAutoScaleWindowWidth && windowHeight == fixedAutoScaleWindowHeight) {
-            return false
-        }
-        fixedAutoScale = PlayerContentAutoScale.factor(binding.playerView, resources.displayMetrics.density)
-        fixedAutoScaleWindowWidth = windowWidth
-        fixedAutoScaleWindowHeight = windowHeight
-        return true
+        PlayerUiMode.applyLive(this, binding)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

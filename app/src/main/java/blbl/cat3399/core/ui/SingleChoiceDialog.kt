@@ -29,9 +29,11 @@ object SingleChoiceDialog {
         onNegative: (() -> Unit)? = null,
         onPicked: (index: Int, label: String) -> Unit,
     ) {
+        val dialogContext = context.userScaledContext()
+
         if (items.isEmpty()) {
             val builder =
-                MaterialAlertDialogBuilder(context)
+                MaterialAlertDialogBuilder(dialogContext)
                 .setTitle(title)
                 .setMessage("暂无可选项")
             if (neutralText != null) {
@@ -42,9 +44,9 @@ object SingleChoiceDialog {
             return
         }
 
-        val view = LayoutInflater.from(context).inflate(R.layout.dialog_single_choice_list, null, false)
+        val view = LayoutInflater.from(dialogContext).inflate(R.layout.dialog_single_choice_list, null, false)
         val recycler = view.findViewById<RecyclerView>(R.id.recycler)
-        recycler.layoutManager = LinearLayoutManager(context)
+        recycler.layoutManager = LinearLayoutManager(dialogContext)
 
         val safeChecked = checkedIndex.takeIf { it in items.indices } ?: 0
         val adapter =
@@ -59,7 +61,7 @@ object SingleChoiceDialog {
         recycler.adapter = adapter
 
         val dialog =
-            MaterialAlertDialogBuilder(context)
+            MaterialAlertDialogBuilder(dialogContext)
                 .setTitle(title)
                 .setView(view)
                 .apply {
@@ -79,8 +81,8 @@ object SingleChoiceDialog {
             dialog.findViewById<View>(AppCompatR.id.customPanel)?.setPadding(0, 0, 0, 0)
 
             // Avoid overly wide dialogs on large screens (e.g. TV), which makes the list feel sparse.
-            val maxWidthPx = dp(context, 600f)
-            val targetWidthPx = (context.resources.displayMetrics.widthPixels * 0.90f).toInt().coerceAtMost(maxWidthPx)
+            val maxWidthPx = dp(dialogContext, 600f)
+            val targetWidthPx = (dialogContext.resources.displayMetrics.widthPixels * 0.90f).toInt().coerceAtMost(maxWidthPx)
             dialog.window?.setLayout(targetWidthPx, ViewGroup.LayoutParams.WRAP_CONTENT)
 
             // Ensure the checked item is visible in the very first layout pass.
@@ -97,7 +99,7 @@ object SingleChoiceDialog {
                         attempts++
                         val ok =
                             applyDesiredListHeight(
-                                context = context,
+                                context = dialogContext,
                                 dialog = dialog,
                                 recycler = recycler,
                                 itemCount = items.size,

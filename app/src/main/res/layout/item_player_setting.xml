@@ -3,19 +3,19 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="4dp"
+    android:layout_marginBottom="@dimen/player_setting_item_margin_bottom"
     android:clickable="true"
     android:focusable="true"
     android:stateListAnimator="@animator/blbl_focus_scale"
     app:cardBackgroundColor="@color/blbl_surface"
-    app:cardCornerRadius="8dp"
+    app:cardCornerRadius="@dimen/player_setting_item_corner_radius"
     app:strokeColor="@color/blbl_focus_stroke"
-    app:strokeWidth="1dp">
+    app:strokeWidth="@dimen/player_setting_item_stroke_width">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="18dp">
+        android:padding="@dimen/player_setting_item_padding">
 
         <TextView
             android:id="@+id/tv_title"
@@ -24,7 +24,7 @@
             android:ellipsize="end"
             android:maxLines="1"
             android:textColor="@color/blbl_text"
-            android:textSize="18sp"
+            android:textSize="@dimen/player_setting_item_title_text_size"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toStartOf="@id/tv_subtitle"
             app:layout_constraintStart_toStartOf="parent"
@@ -34,12 +34,12 @@
             android:id="@+id/tv_subtitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
+            android:layout_marginStart="@dimen/player_setting_item_subtitle_margin_start"
             android:ellipsize="end"
             android:gravity="end"
             android:maxLines="1"
             android:textColor="@color/blbl_text_secondary"
-            android:textSize="15sp"
+            android:textSize="@dimen/player_setting_item_subtitle_text_size"
             app:layout_constraintBaseline_toBaselineOf="@id/tv_title"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toEndOf="@id/tv_title" />

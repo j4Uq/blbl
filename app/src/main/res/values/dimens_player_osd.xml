@@ -1,33 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!--
-      Player bottom OSD: baseline is Medium; Small/Large are Medium x 0.9 / x 1.1.
+      Player bottom OSD: baseline values (tuned at 1080p@1.5).
+      Runtime scaling is applied by code (userScale + autoScale).
       Baseline tuning target: 1920x1080 with screen scale shown as 1.5x in "设备信息 -> 屏幕".
     -->
 
     <!-- Focus target size (all buttons) -->
-    <dimen name="player_osd_button_target_size_s">47.79dp</dimen>
-    <dimen name="player_osd_button_target_size_m">53.1dp</dimen>
-    <dimen name="player_osd_button_target_size_l">58.41dp</dimen>
+    <dimen name="player_osd_button_target_size">53.1dp</dimen>
 
     <!-- Button spacing -->
-    <dimen name="player_osd_gap_s">2.43dp</dimen>
-    <dimen name="player_osd_gap_m">2.7dp</dimen>
-    <dimen name="player_osd_gap_l">2.97dp</dimen>
+    <dimen name="player_osd_gap">2.7dp</dimen>
 
     <!-- Icon padding: transport (prev/next/play) -->
-    <dimen name="player_osd_pad_transport_s">5.03dp</dimen>
-    <dimen name="player_osd_pad_transport_m">5.59dp</dimen>
-    <dimen name="player_osd_pad_transport_l">6.15dp</dimen>
+    <dimen name="player_osd_pad_transport">5.59dp</dimen>
 
     <!-- Icon padding: normal buttons (subtitle/danmaku/up) -->
-    <dimen name="player_osd_pad_normal_s">5.93dp</dimen>
-    <dimen name="player_osd_pad_normal_m">6.59dp</dimen>
-    <dimen name="player_osd_pad_normal_l">7.25dp</dimen>
+    <dimen name="player_osd_pad_normal">6.59dp</dimen>
 
     <!-- Icon padding: small buttons (like/coin/fav/advanced) -->
-    <dimen name="player_osd_pad_small_s">6.52dp</dimen>
-    <dimen name="player_osd_pad_small_m">7.24dp</dimen>
-    <dimen name="player_osd_pad_small_l">7.96dp</dimen>
+    <dimen name="player_osd_pad_small">7.24dp</dimen>
 
 </resources>

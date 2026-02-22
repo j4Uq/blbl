@@ -148,14 +148,16 @@
         <TextView
             android:id="@+id/tv_title"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="0dp"
             android:layout_margin="@dimen/video_card_text_margin"
             android:ellipsize="end"
             android:lines="2"
             android:maxLines="2"
             android:textColor="@color/blbl_text"
             android:textSize="@dimen/video_card_title_text_size"
+            app:layout_constraintBottom_toTopOf="@id/ll_subtitle"
             app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHeight_default="wrap"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/cl_cover" />
 

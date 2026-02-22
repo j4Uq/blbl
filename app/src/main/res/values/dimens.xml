@@ -1,240 +1,153 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Sidebar -->
-    <dimen name="sidebar_width_normal">44dp</dimen>
-    <dimen name="sidebar_width_small">40dp</dimen>
-    <dimen name="sidebar_width_large">52dp</dimen>
-    <dimen name="sidebar_width_tv">77dp</dimen>
-    <dimen name="sidebar_width_tv_small">70dp</dimen>
-    <dimen name="sidebar_width_tv_large">99dp</dimen>
-    <dimen name="sidebar_user_size">32dp</dimen>
-    <dimen name="sidebar_user_margin_top">8dp</dimen>
-    <dimen name="sidebar_login_size">40dp</dimen>
-    <dimen name="sidebar_login_margin_top">8dp</dimen>
-    <dimen name="sidebar_login_text_size">12sp</dimen>
-    <dimen name="sidebar_nav_margin_top">12dp</dimen>
-    <dimen name="sidebar_settings_size">32dp</dimen>
-    <dimen name="sidebar_settings_padding">4dp</dimen>
-    <dimen name="sidebar_settings_margin_bottom">8dp</dimen>
+    <!-- Sidebar (baseline 1080p@1.5) -->
+    <dimen name="sidebar_width">77dp</dimen>
+    <dimen name="sidebar_user_size">48dp</dimen>
+    <dimen name="sidebar_user_margin_top">12dp</dimen>
+    <dimen name="sidebar_login_size">56dp</dimen>
+    <dimen name="sidebar_login_margin_top">12dp</dimen>
+    <dimen name="sidebar_login_text_size">16sp</dimen>
+    <dimen name="sidebar_nav_margin_top">16dp</dimen>
+    <dimen name="sidebar_settings_size">44dp</dimen>
+    <dimen name="sidebar_settings_padding">6dp</dimen>
+    <dimen name="sidebar_settings_margin_bottom">12dp</dimen>
 
     <!-- Sidebar nav item -->
-    <dimen name="sidebar_nav_card_margin_v">1dp</dimen>
-    <dimen name="sidebar_nav_card_margin_h">2dp</dimen>
-    <dimen name="sidebar_nav_container_padding_v">4dp</dimen>
-    <dimen name="sidebar_nav_icon_size">22dp</dimen>
-    <dimen name="sidebar_nav_label_margin_top">2dp</dimen>
-    <dimen name="sidebar_nav_label_text_size">11sp</dimen>
-    <dimen name="sidebar_nav_item_height_default">32dp</dimen>
-    <dimen name="sidebar_nav_item_height_selected">56dp</dimen>
-    <dimen name="sidebar_nav_item_height_labeled">52dp</dimen>
+    <dimen name="sidebar_nav_card_margin_v">2dp</dimen>
+    <dimen name="sidebar_nav_card_margin_h">6dp</dimen>
+    <dimen name="sidebar_nav_container_padding_v">8dp</dimen>
+    <dimen name="sidebar_nav_icon_size">32dp</dimen>
+    <dimen name="sidebar_nav_label_margin_top">4dp</dimen>
+    <dimen name="sidebar_nav_label_text_size">14sp</dimen>
+    <dimen name="sidebar_nav_item_height_default">48dp</dimen>
+    <dimen name="sidebar_nav_item_height_selected">84dp</dimen>
+    <dimen name="sidebar_nav_item_height_labeled">72dp</dimen>
 
     <!-- Video card -->
-    <dimen name="video_card_margin">5dp</dimen>
-    <dimen name="video_card_text_margin">8dp</dimen>
-    <dimen name="video_card_duration_text_size">12sp</dimen>
-    <dimen name="video_card_duration_padding_h">6dp</dimen>
-    <dimen name="video_card_duration_padding_v">2dp</dimen>
-    <dimen name="video_card_stat_icon_size">14dp</dimen>
-    <dimen name="video_card_stat_text_size">12sp</dimen>
-    <dimen name="video_card_title_text_size">14sp</dimen>
-    <dimen name="video_card_subtitle_text_size">12sp</dimen>
-
-    <!-- Baseline (1080p@1.5) dimens (legacy *_tv names kept) -->
-    <dimen name="sidebar_user_size_tv">48dp</dimen>
-    <dimen name="sidebar_user_margin_top_tv">12dp</dimen>
-    <dimen name="sidebar_login_size_tv">56dp</dimen>
-    <dimen name="sidebar_login_margin_top_tv">12dp</dimen>
-    <dimen name="sidebar_login_text_size_tv">16sp</dimen>
-    <dimen name="sidebar_nav_margin_top_tv">16dp</dimen>
-    <dimen name="sidebar_settings_size_tv">44dp</dimen>
-    <dimen name="sidebar_settings_padding_tv">6dp</dimen>
-    <dimen name="sidebar_settings_margin_bottom_tv">12dp</dimen>
-
-    <dimen name="sidebar_nav_card_margin_v_tv">2dp</dimen>
-    <dimen name="sidebar_nav_card_margin_h_tv">6dp</dimen>
-    <dimen name="sidebar_nav_container_padding_v_tv">8dp</dimen>
-    <dimen name="sidebar_nav_icon_size_tv">32dp</dimen>
-    <dimen name="sidebar_nav_label_margin_top_tv">4dp</dimen>
-    <dimen name="sidebar_nav_label_text_size_tv">14sp</dimen>
-    <dimen name="sidebar_nav_item_height_default_tv">48dp</dimen>
-    <dimen name="sidebar_nav_item_height_selected_tv">84dp</dimen>
-    <dimen name="sidebar_nav_item_height_labeled_tv">72dp</dimen>
-
-    <dimen name="video_card_margin_tv">8dp</dimen>
-    <dimen name="video_card_text_margin_tv">10dp</dimen>
-    <dimen name="video_card_duration_text_size_tv">14sp</dimen>
-    <dimen name="video_card_duration_padding_h_tv">8dp</dimen>
-    <dimen name="video_card_duration_padding_v_tv">3dp</dimen>
-    <dimen name="video_card_stat_icon_size_tv">18dp</dimen>
-    <dimen name="video_card_stat_text_size_tv">14sp</dimen>
-    <dimen name="video_card_title_text_size_tv">18sp</dimen>
-    <dimen name="video_card_subtitle_text_size_tv">14sp</dimen>
+    <dimen name="video_card_margin">8dp</dimen>
+    <dimen name="video_card_text_margin">10dp</dimen>
+    <dimen name="video_card_duration_text_size">14sp</dimen>
+    <dimen name="video_card_duration_padding_h">8dp</dimen>
+    <dimen name="video_card_duration_padding_v">3dp</dimen>
+    <dimen name="video_card_stat_icon_size">18dp</dimen>
+    <dimen name="video_card_stat_text_size">14sp</dimen>
+    <dimen name="video_card_title_text_size">18sp</dimen>
+    <dimen name="video_card_subtitle_text_size">14sp</dimen>
 
     <!-- Player: bottom recommend panel -->
-    <dimen name="player_recommend_card_width_tv">260dp</dimen>
-    <dimen name="player_recommend_card_margin_tv">6dp</dimen>
+    <dimen name="player_recommend_card_width">260dp</dimen>
+    <dimen name="player_recommend_card_margin">6dp</dimen>
 
-    <!-- Video detail: header (baseline 1080p@1.5) -->
-    <dimen name="video_detail_header_padding_start_tv">16dp</dimen>
-    <dimen name="video_detail_header_padding_top_tv">16dp</dimen>
-    <dimen name="video_detail_header_padding_end_tv">16dp</dimen>
-    <dimen name="video_detail_header_padding_bottom_tv">12dp</dimen>
+    <!-- Video detail: header -->
+    <dimen name="video_detail_header_padding_start">16dp</dimen>
+    <dimen name="video_detail_header_padding_top">16dp</dimen>
+    <dimen name="video_detail_header_padding_end">16dp</dimen>
+    <dimen name="video_detail_header_padding_bottom">12dp</dimen>
 
-    <dimen name="video_detail_header_cover_width_tv">480dp</dimen>
+    <dimen name="video_detail_header_cover_width">480dp</dimen>
 
-    <dimen name="video_detail_header_title_margin_start_tv">16dp</dimen>
-    <dimen name="video_detail_header_title_margin_end_tv">12dp</dimen>
-    <dimen name="video_detail_header_title_text_size_tv">30sp</dimen>
+    <dimen name="video_detail_header_title_margin_start">16dp</dimen>
+    <dimen name="video_detail_header_title_margin_end">12dp</dimen>
+    <dimen name="video_detail_header_title_text_size">30sp</dimen>
 
-    <dimen name="video_detail_header_up_card_margin_top_tv">12dp</dimen>
-    <dimen name="video_detail_header_up_card_corner_radius_tv">14dp</dimen>
-    <dimen name="video_detail_header_up_card_stroke_width_tv">2dp</dimen>
-    <dimen name="video_detail_header_up_card_padding_h_tv">12dp</dimen>
-    <dimen name="video_detail_header_up_card_padding_v_tv">10dp</dimen>
-    <dimen name="video_detail_header_up_avatar_size_tv">56dp</dimen>
-    <dimen name="video_detail_header_up_name_margin_start_tv">12dp</dimen>
-    <dimen name="video_detail_header_up_name_max_width_tv">320dp</dimen>
-    <dimen name="video_detail_header_up_name_text_size_tv">22sp</dimen>
+    <dimen name="video_detail_header_up_card_margin_top">12dp</dimen>
+    <dimen name="video_detail_header_up_card_corner_radius">14dp</dimen>
+    <dimen name="video_detail_header_up_card_stroke_width">2dp</dimen>
+    <dimen name="video_detail_header_up_card_padding_h">12dp</dimen>
+    <dimen name="video_detail_header_up_card_padding_v">10dp</dimen>
+    <dimen name="video_detail_header_up_avatar_size">56dp</dimen>
+    <dimen name="video_detail_header_up_name_margin_start">12dp</dimen>
+    <dimen name="video_detail_header_up_name_max_width">320dp</dimen>
+    <dimen name="video_detail_header_up_name_text_size">22sp</dimen>
 
-    <dimen name="video_detail_header_desc_margin_top_tv">12dp</dimen>
-    <dimen name="video_detail_header_desc_margin_end_tv">12dp</dimen>
-    <dimen name="video_detail_header_desc_text_size_tv">20sp</dimen>
+    <dimen name="video_detail_header_desc_margin_top">12dp</dimen>
+    <dimen name="video_detail_header_desc_margin_end">12dp</dimen>
+    <dimen name="video_detail_header_desc_text_size">20sp</dimen>
 
-    <dimen name="video_detail_header_play_margin_top_tv">12dp</dimen>
-    <dimen name="video_detail_header_play_text_size_tv">22sp</dimen>
-    <dimen name="video_detail_header_play_corner_radius_tv">14dp</dimen>
-    <dimen name="video_detail_header_play_stroke_width_tv">2dp</dimen>
+    <dimen name="video_detail_header_play_margin_top">12dp</dimen>
+    <dimen name="video_detail_header_play_text_size">22sp</dimen>
+    <dimen name="video_detail_header_play_corner_radius">14dp</dimen>
+    <dimen name="video_detail_header_play_stroke_width">2dp</dimen>
 
-    <dimen name="video_detail_header_parts_margin_top_tv">20dp</dimen>
-    <dimen name="video_detail_header_season_margin_top_tv">8dp</dimen>
-    <dimen name="video_detail_header_recommend_margin_top_tv">16dp</dimen>
-    <dimen name="video_detail_header_section_text_size_tv">22sp</dimen>
-    <dimen name="video_detail_header_playlist_padding_v_tv">8dp</dimen>
+    <dimen name="video_detail_header_parts_margin_top">20dp</dimen>
+    <dimen name="video_detail_header_season_margin_top">8dp</dimen>
+    <dimen name="video_detail_header_recommend_margin_top">16dp</dimen>
+    <dimen name="video_detail_header_section_text_size">22sp</dimen>
+    <dimen name="video_detail_header_playlist_padding_v">8dp</dimen>
 
-    <!-- Video detail: playlist item (baseline 1080p@1.5) -->
-    <dimen name="video_detail_playlist_item_height_tv">52dp</dimen>
-    <dimen name="video_detail_playlist_item_margin_tv">8dp</dimen>
-    <dimen name="video_detail_playlist_item_min_width_tv">140dp</dimen>
-    <dimen name="video_detail_playlist_item_text_size_tv">16sp</dimen>
-    <dimen name="video_detail_playlist_item_corner_radius_tv">20dp</dimen>
+    <!-- Video detail: playlist item -->
+    <dimen name="video_detail_playlist_item_height">52dp</dimen>
+    <dimen name="video_detail_playlist_item_margin">8dp</dimen>
+    <dimen name="video_detail_playlist_item_min_width">140dp</dimen>
+    <dimen name="video_detail_playlist_item_text_size">16sp</dimen>
+    <dimen name="video_detail_playlist_item_corner_radius">20dp</dimen>
 
     <!-- Dynamic: following list -->
-    <dimen name="dynamic_following_panel_width">165dp</dimen>
-    <dimen name="dynamic_following_panel_width_tv">220dp</dimen>
+    <dimen name="dynamic_following_panel_width">220dp</dimen>
     <dimen name="dynamic_following_panel_margin">8dp</dimen>
-    <dimen name="dynamic_following_panel_margin_tv">8dp</dimen>
-    <dimen name="dynamic_following_list_padding">3dp</dimen>
-    <dimen name="dynamic_following_list_padding_tv">6dp</dimen>
+    <dimen name="dynamic_following_list_padding">6dp</dimen>
 
-    <dimen name="following_item_height">36dp</dimen>
-    <dimen name="following_item_height_tv">50dp</dimen>
+    <dimen name="following_item_height">50dp</dimen>
     <dimen name="following_item_margin_v">1dp</dimen>
-    <dimen name="following_item_margin_v_tv">1dp</dimen>
-    <dimen name="following_item_margin_h">2dp</dimen>
-    <dimen name="following_item_margin_h_tv">4dp</dimen>
-    <dimen name="following_container_padding_h">6dp</dimen>
-    <dimen name="following_container_padding_h_tv">10dp</dimen>
+    <dimen name="following_item_margin_h">4dp</dimen>
+    <dimen name="following_container_padding_h">10dp</dimen>
     <dimen name="following_selected_width">3dp</dimen>
-    <dimen name="following_selected_width_tv">3dp</dimen>
-    <dimen name="following_selected_height">18dp</dimen>
-    <dimen name="following_selected_height_tv">24dp</dimen>
-    <dimen name="following_selected_margin_end">6dp</dimen>
-    <dimen name="following_selected_margin_end_tv">8dp</dimen>
-    <dimen name="following_avatar_size">24dp</dimen>
-    <dimen name="following_avatar_size_tv">34dp</dimen>
-    <dimen name="following_name_margin_start">6dp</dimen>
-    <dimen name="following_name_margin_start_tv">8dp</dimen>
-    <dimen name="following_name_text_size">14sp</dimen>
-    <dimen name="following_name_text_size_tv">16sp</dimen>
+    <dimen name="following_selected_height">24dp</dimen>
+    <dimen name="following_selected_margin_end">8dp</dimen>
+    <dimen name="following_avatar_size">34dp</dimen>
+    <dimen name="following_name_margin_start">8dp</dimen>
+    <dimen name="following_name_text_size">16sp</dimen>
 
     <!-- My following: grid -->
-    <dimen name="following_grid_item_margin">8dp</dimen>
-    <dimen name="following_grid_item_margin_tv">10dp</dimen>
-    <dimen name="following_grid_item_padding">10dp</dimen>
-    <dimen name="following_grid_item_padding_tv">14dp</dimen>
-    <dimen name="following_grid_avatar_size">88dp</dimen>
-    <dimen name="following_grid_avatar_size_tv">112dp</dimen>
-    <dimen name="following_grid_name_margin_top">10dp</dimen>
-    <dimen name="following_grid_name_margin_top_tv">12dp</dimen>
-    <dimen name="following_grid_name_text_size">14sp</dimen>
-    <dimen name="following_grid_name_text_size_tv">18sp</dimen>
-    <dimen name="following_grid_sign_margin_top">4dp</dimen>
-    <dimen name="following_grid_sign_margin_top_tv">6dp</dimen>
-    <dimen name="following_grid_sign_text_size">12sp</dimen>
-    <dimen name="following_grid_sign_text_size_tv">14sp</dimen>
+    <dimen name="following_grid_item_margin">10dp</dimen>
+    <dimen name="following_grid_item_padding">14dp</dimen>
+    <dimen name="following_grid_avatar_size">112dp</dimen>
+    <dimen name="following_grid_name_margin_top">12dp</dimen>
+    <dimen name="following_grid_name_text_size">18sp</dimen>
+    <dimen name="following_grid_sign_margin_top">6dp</dimen>
+    <dimen name="following_grid_sign_text_size">14sp</dimen>
 
     <!-- Search: history/suggest/hot list -->
-    <dimen name="search_suggest_margin_bottom">10dp</dimen>
-    <dimen name="search_suggest_margin_bottom_tv">14dp</dimen>
-    <dimen name="search_suggest_padding_h">14dp</dimen>
-    <dimen name="search_suggest_padding_h_tv">18dp</dimen>
-    <dimen name="search_suggest_padding_v">10dp</dimen>
-    <dimen name="search_suggest_padding_v_tv">14dp</dimen>
-    <dimen name="search_suggest_text_size">14sp</dimen>
-    <dimen name="search_suggest_text_size_tv">18sp</dimen>
+    <dimen name="search_suggest_margin_bottom">14dp</dimen>
+    <dimen name="search_suggest_padding_h">18dp</dimen>
+    <dimen name="search_suggest_padding_v">14dp</dimen>
+    <dimen name="search_suggest_text_size">18sp</dimen>
 
-    <dimen name="search_hot_margin_bottom">10dp</dimen>
-    <dimen name="search_hot_margin_bottom_tv">14dp</dimen>
-    <dimen name="search_hot_padding_h">14dp</dimen>
-    <dimen name="search_hot_padding_h_tv">18dp</dimen>
-    <dimen name="search_hot_padding_v">10dp</dimen>
-    <dimen name="search_hot_padding_v_tv">14dp</dimen>
-    <dimen name="search_hot_icon_size">16dp</dimen>
-    <dimen name="search_hot_icon_size_tv">22dp</dimen>
-    <dimen name="search_hot_icon_margin_end">8dp</dimen>
-    <dimen name="search_hot_icon_margin_end_tv">12dp</dimen>
-    <dimen name="search_hot_text_size">14sp</dimen>
-    <dimen name="search_hot_text_size_tv">18sp</dimen>
+    <dimen name="search_hot_margin_bottom">14dp</dimen>
+    <dimen name="search_hot_padding_h">18dp</dimen>
+    <dimen name="search_hot_padding_v">14dp</dimen>
+    <dimen name="search_hot_icon_size">22dp</dimen>
+    <dimen name="search_hot_icon_margin_end">12dp</dimen>
+    <dimen name="search_hot_text_size">18sp</dimen>
 
     <!-- Player: top/bottom controls -->
-    <dimen name="player_top_bar_padding_h">4.8dp</dimen>
+    <dimen name="player_top_bar_padding_h">10dp</dimen>
     <dimen name="player_top_bar_padding_v">2dp</dimen>
-    <dimen name="player_top_bar_padding_h_tv">10dp</dimen>
-    <dimen name="player_top_bar_padding_v_tv">2dp</dimen>
+    <dimen name="player_top_bar_padding_top_extra">14dp</dimen>
 
-    <dimen name="player_top_bar_padding_top_extra">10dp</dimen>
-    <dimen name="player_top_bar_padding_top_extra_tv">14dp</dimen>
+    <dimen name="player_top_button_size">50dp</dimen>
+    <dimen name="player_top_button_padding">5dp</dimen>
 
-    <dimen name="player_top_button_size">36dp</dimen>
-    <dimen name="player_top_button_size_tv">50dp</dimen>
-    <dimen name="player_top_button_padding">4dp</dimen>
-    <dimen name="player_top_button_padding_tv">5dp</dimen>
+    <dimen name="player_title_margin_start">12dp</dimen>
+    <dimen name="player_title_margin_end">12dp</dimen>
+    <dimen name="player_title_text_size">22sp</dimen>
 
-    <dimen name="player_title_margin_start">6dp</dimen>
-    <dimen name="player_title_margin_end">8dp</dimen>
-    <dimen name="player_title_margin_start_tv">12dp</dimen>
-    <dimen name="player_title_margin_end_tv">12dp</dimen>
-    <dimen name="player_title_text_size">16sp</dimen>
-    <dimen name="player_title_text_size_tv">22sp</dimen>
+    <dimen name="player_online_text_size">16sp</dimen>
 
-    <dimen name="player_online_text_size">12sp</dimen>
-    <dimen name="player_online_text_size_tv">16sp</dimen>
+    <dimen name="player_clock_margin_top">12dp</dimen>
+    <dimen name="player_clock_margin_start">14dp</dimen>
+    <dimen name="player_clock_margin_end">16dp</dimen>
+    <dimen name="player_clock_padding_h">14dp</dimen>
+    <dimen name="player_clock_padding_v">8dp</dimen>
+    <dimen name="player_clock_text_size">24sp</dimen>
 
-    <dimen name="player_clock_margin_top">8dp</dimen>
-    <dimen name="player_clock_margin_top_tv">12dp</dimen>
-    <dimen name="player_clock_margin_start">10dp</dimen>
-    <dimen name="player_clock_margin_start_tv">14dp</dimen>
-    <dimen name="player_clock_margin_end">12dp</dimen>
-    <dimen name="player_clock_margin_end_tv">16dp</dimen>
-    <dimen name="player_clock_padding_h">10dp</dimen>
-    <dimen name="player_clock_padding_h_tv">14dp</dimen>
-    <dimen name="player_clock_padding_v">6dp</dimen>
-    <dimen name="player_clock_padding_v_tv">8dp</dimen>
-    <dimen name="player_clock_text_size">19sp</dimen>
-    <dimen name="player_clock_text_size_tv">24sp</dimen>
-
-    <dimen name="player_title_meta_margin_top">2dp</dimen>
-    <dimen name="player_title_meta_margin_top_tv">4dp</dimen>
+    <dimen name="player_title_meta_margin_top">4dp</dimen>
     <dimen name="player_title_meta_padding_bottom">0dp</dimen>
-    <dimen name="player_title_meta_padding_bottom_tv">0dp</dimen>
 
-    <dimen name="player_bottom_bar_padding_v">4dp</dimen>
-    <dimen name="player_bottom_bar_padding_v_tv">8dp</dimen>
+    <dimen name="player_bottom_bar_padding_v">8dp</dimen>
     <!-- SeekBar touch target height: ~3x track thickness for easier scrubbing. -->
-    <dimen name="player_seekbar_touch_height">12dp</dimen>
-    <dimen name="player_seekbar_touch_height_tv">15dp</dimen>
+    <dimen name="player_seekbar_touch_height">15dp</dimen>
     <dimen name="player_seekbar_height">5dp</dimen>
-    <dimen name="player_seekbar_height_tv">5dp</dimen>
     <!-- SeekBar view/Thumb is 5dp; track is thinner (see player_seekbar_track_height). -->
     <dimen name="player_seekbar_track_height">5dp</dimen>
     <dimen name="player_seekbar_corner_radius">2.5dp</dimen>
@@ -245,46 +158,90 @@
     <dimen name="player_seek_osd_time_margin_bottom">6dp</dimen>
     <dimen name="player_seek_osd_margin_bottom">12dp</dimen>
     <!-- With expanded SeekBar touch height, reduce bottom margin so visual gap stays the same. -->
-    <dimen name="player_seekbar_margin_bottom">2.5dp</dimen>
-    <dimen name="player_seekbar_margin_bottom_tv">6.5dp</dimen>
+    <dimen name="player_seekbar_margin_bottom">6.5dp</dimen>
 
-    <dimen name="player_controls_row_height">50dp</dimen>
-    <dimen name="player_controls_row_height_tv">70dp</dimen>
-    <dimen name="player_controls_row_margin_start">8dp</dimen>
-    <dimen name="player_controls_row_margin_end">6dp</dimen>
-    <dimen name="player_controls_row_margin_start_tv">16dp</dimen>
-    <dimen name="player_controls_row_margin_end_tv">12dp</dimen>
+    <dimen name="player_controls_row_height">70dp</dimen>
+    <dimen name="player_controls_row_margin_start">16dp</dimen>
+    <dimen name="player_controls_row_margin_end">12dp</dimen>
 
-    <dimen name="player_control_button_size">39dp</dimen>
-    <dimen name="player_control_button_size_tv">59dp</dimen>
-    <dimen name="player_control_button_size_main">32dp</dimen>
-    <dimen name="player_control_button_size_main_tv">52dp</dimen>
-    <dimen name="player_control_button_size_main_play">34dp</dimen>
-    <dimen name="player_control_button_size_main_play_tv">54dp</dimen>
-    <dimen name="player_control_button_height_subtitle">41dp</dimen>
-    <dimen name="player_control_button_height_subtitle_tv">61dp</dimen>
-    <dimen name="player_control_button_size_settings">31dp</dimen>
-    <dimen name="player_control_button_size_settings_tv">51dp</dimen>
-    <dimen name="player_control_button_padding_main">2dp</dimen>
-    <dimen name="player_control_button_padding_main_tv">2.6dp</dimen>
-    <dimen name="player_control_button_padding">3.2dp</dimen>
-    <dimen name="player_control_button_padding_tv">4dp</dimen>
-    <dimen name="player_control_button_gap">2dp</dimen>
-    <dimen name="player_control_button_gap_tv">3dp</dimen>
+    <dimen name="player_control_button_size">59dp</dimen>
+    <dimen name="player_control_button_size_main">52dp</dimen>
+    <dimen name="player_control_button_size_main_play">54dp</dimen>
+    <dimen name="player_control_button_height_subtitle">61dp</dimen>
+    <dimen name="player_control_button_size_settings">51dp</dimen>
+    <dimen name="player_control_button_padding_main">2.6dp</dimen>
+    <dimen name="player_control_button_padding">4dp</dimen>
+    <dimen name="player_control_button_gap">3dp</dimen>
 
-    <dimen name="player_time_margin_end">8dp</dimen>
-    <dimen name="player_time_margin_end_tv">12dp</dimen>
-    <dimen name="player_time_text_size">17sp</dimen>
-    <dimen name="player_time_text_size_tv">22sp</dimen>
+    <dimen name="player_time_margin_end">12dp</dimen>
+    <dimen name="player_time_text_size">22sp</dimen>
 
-    <dimen name="player_seek_hint_margin_start">14dp</dimen>
-    <dimen name="player_seek_hint_margin_bottom">14dp</dimen>
-    <dimen name="player_seek_hint_margin_start_tv">20dp</dimen>
-    <dimen name="player_seek_hint_margin_bottom_tv">20dp</dimen>
-    <dimen name="player_seek_hint_padding_h">10dp</dimen>
-    <dimen name="player_seek_hint_padding_v">6dp</dimen>
-    <dimen name="player_seek_hint_padding_h_tv">14dp</dimen>
-    <dimen name="player_seek_hint_padding_v_tv">10dp</dimen>
-    <dimen name="player_seek_hint_text_size">16sp</dimen>
-    <dimen name="player_seek_hint_text_size_tv">22sp</dimen>
+    <dimen name="player_seek_hint_margin_start">20dp</dimen>
+    <dimen name="player_seek_hint_margin_bottom">20dp</dimen>
+    <dimen name="player_seek_hint_padding_h">14dp</dimen>
+    <dimen name="player_seek_hint_padding_v">10dp</dimen>
+    <dimen name="player_seek_hint_text_size">22sp</dimen>
+
+    <!-- Player: side panels (settings/comments) -->
+    <dimen name="player_side_panel_width">360dp</dimen>
+    <dimen name="player_side_panel_margin">16dp</dimen>
+    <dimen name="player_side_panel_margin_top">0dp</dimen>
+    <dimen name="player_side_panel_margin_bottom">40dp</dimen>
+    <dimen name="player_side_panel_corner_radius">16dp</dimen>
+    <dimen name="player_side_panel_elevation">10dp</dimen>
+    <dimen name="player_side_panel_padding">8dp</dimen>
+    <dimen name="player_side_panel_recycler_padding">4dp</dimen>
+    <dimen name="player_side_panel_content_margin_top">8dp</dimen>
+
+    <dimen name="player_comment_sort_label_text_size">14sp</dimen>
+    <dimen name="player_comment_sort_chip_text_size">14sp</dimen>
+    <dimen name="player_comment_sort_chip_margin_start">10dp</dimen>
+    <dimen name="player_comment_sort_chip_padding_h">12dp</dimen>
+    <dimen name="player_comment_sort_chip_padding_v">6dp</dimen>
+
+    <dimen name="player_comments_hint_padding">16dp</dimen>
+    <dimen name="player_comments_hint_text_size">14sp</dimen>
+
+    <!-- Player: comment panel item -->
+    <dimen name="player_comment_item_margin_bottom">4dp</dimen>
+    <dimen name="player_comment_item_corner_radius">8dp</dimen>
+    <dimen name="player_comment_item_stroke_width">1dp</dimen>
+    <dimen name="player_comment_item_padding">14dp</dimen>
+
+    <dimen name="player_comment_context_tag_text_size">12sp</dimen>
+    <dimen name="player_comment_avatar_size">36dp</dimen>
+    <dimen name="player_comment_avatar_margin_top">6dp</dimen>
+    <dimen name="player_comment_user_margin_start">12dp</dimen>
+    <dimen name="player_comment_user_text_size">15sp</dimen>
+
+    <dimen name="player_comment_up_badge_height">16dp</dimen>
+    <dimen name="player_comment_up_badge_margin_start">8dp</dimen>
+    <dimen name="player_comment_up_badge_min_width">16dp</dimen>
+    <dimen name="player_comment_up_badge_padding_h">4dp</dimen>
+    <dimen name="player_comment_up_badge_text_size">11sp</dimen>
+
+    <dimen name="player_comment_time_text_size">12sp</dimen>
+    <dimen name="player_comment_message_margin_top">6dp</dimen>
+    <dimen name="player_comment_message_text_size">14sp</dimen>
+
+    <dimen name="player_comment_pictures_margin_top">8dp</dimen>
+    <dimen name="player_comment_picture_width">96dp</dimen>
+    <dimen name="player_comment_picture_height">72dp</dimen>
+    <dimen name="player_comment_picture_gap">8dp</dimen>
+
+    <dimen name="player_comment_reply_preview_padding_top">8dp</dimen>
+    <dimen name="player_comment_reply_preview_text_size">12sp</dimen>
+    <dimen name="player_comment_reply_preview_margin_top">4dp</dimen>
+
+    <dimen name="player_comment_meta_margin_top">10dp</dimen>
+    <dimen name="player_comment_meta_text_size">12sp</dimen>
+
+    <!-- Player: settings panel item -->
+    <dimen name="player_setting_item_margin_bottom">4dp</dimen>
+    <dimen name="player_setting_item_corner_radius">8dp</dimen>
+    <dimen name="player_setting_item_stroke_width">1dp</dimen>
+    <dimen name="player_setting_item_padding">18dp</dimen>
+    <dimen name="player_setting_item_title_text_size">18sp</dimen>
+    <dimen name="player_setting_item_subtitle_text_size">15sp</dimen>
+    <dimen name="player_setting_item_subtitle_margin_start">16dp</dimen>
 </resources>

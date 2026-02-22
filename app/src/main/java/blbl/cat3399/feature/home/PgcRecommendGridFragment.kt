@@ -19,7 +19,6 @@ import blbl.cat3399.core.ui.AppToast
 import blbl.cat3399.core.ui.DpadGridController
 import blbl.cat3399.core.ui.FocusTreeUtils
 import blbl.cat3399.core.ui.TabSwitchFocusTarget
-import blbl.cat3399.core.ui.UiScale
 import blbl.cat3399.core.ui.postIfAlive
 import blbl.cat3399.core.ui.postIfAttached
 import blbl.cat3399.databinding.FragmentVideoGridBinding
@@ -37,7 +36,6 @@ class PgcRecommendGridFragment : Fragment(), RefreshKeyHandler, TabSwitchFocusTa
     private val kind: Int by lazy { requireArguments().getInt(ARG_KIND) }
 
     private lateinit var adapter: BangumiFollowAdapter
-    private var lastUiScaleFactor: Float? = null
     private val loadedSeasonIds = HashSet<Long>()
 
     private var cursor: String? = null
@@ -117,15 +115,10 @@ class PgcRecommendGridFragment : Fragment(), RefreshKeyHandler, TabSwitchFocusTa
         )
 
         binding.swipeRefresh.setOnRefreshListener { resetAndLoad() }
-        lastUiScaleFactor = UiScale.factor(requireContext())
     }
 
     override fun onResume() {
         super.onResume()
-        val old = lastUiScaleFactor
-        val now = UiScale.factor(requireContext())
-        lastUiScaleFactor = now
-        if (old != null && old != now) adapter.invalidateSizing()
         (binding.recycler.layoutManager as? GridLayoutManager)?.spanCount = spanCountForPgc()
         maybeTriggerInitialLoad()
         restoreFocusIfNeeded()

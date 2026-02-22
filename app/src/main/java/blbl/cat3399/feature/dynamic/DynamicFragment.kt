@@ -18,6 +18,7 @@ import blbl.cat3399.core.ui.AppToast
 import blbl.cat3399.core.ui.DpadGridController
 import blbl.cat3399.core.ui.GridSpanPolicy
 import blbl.cat3399.core.ui.UiScale
+import blbl.cat3399.core.ui.uiScaler
 import blbl.cat3399.core.ui.postIfAlive
 import blbl.cat3399.databinding.FragmentDynamicBinding
 import blbl.cat3399.databinding.FragmentDynamicLoginBinding
@@ -31,7 +32,6 @@ import blbl.cat3399.feature.video.VideoCardAdapter
 import blbl.cat3399.ui.RefreshKeyHandler
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 class DynamicFragment : Fragment(), RefreshKeyHandler {
     private var _bindingLogin: FragmentDynamicLoginBinding? = null
@@ -50,7 +50,6 @@ class DynamicFragment : Fragment(), RefreshKeyHandler {
     private var nextPage: Int = 1
     private var requestToken: Int = 0
     private var dynamicGridController: DpadGridController? = null
-    private var lastUiScaleFactor: Float? = null
 
     private var userMid: Long = 0L
     private var followPage: Int = 1
@@ -127,7 +126,6 @@ class DynamicFragment : Fragment(), RefreshKeyHandler {
                     ),
             ).also { it.install() }
         applyUiMode()
-        lastUiScaleFactor = UiScale.factor(requireContext())
 
         videoAdapter =
             VideoCardAdapter(
@@ -472,14 +470,6 @@ class DynamicFragment : Fragment(), RefreshKeyHandler {
 
     override fun onResume() {
         super.onResume()
-        val old = lastUiScaleFactor
-        val now = UiScale.factor(requireContext())
-        lastUiScaleFactor = now
-        if (old == null || old != now) {
-            applyUiMode()
-            if (this::videoAdapter.isInitialized) videoAdapter.invalidateSizing()
-            if (this::followAdapter.isInitialized) followAdapter.invalidateSizing()
-        }
         (_binding?.recyclerDynamic?.layoutManager as? GridLayoutManager)?.let { lm ->
             val desired = spanCountForWidth()
             if (lm.spanCount != desired) lm.spanCount = desired
@@ -504,21 +494,20 @@ class DynamicFragment : Fragment(), RefreshKeyHandler {
     private fun applyUiMode() {
         val binding = _binding ?: return
         val uiScale = UiScale.factor(requireContext())
-
-        fun px(id: Int): Int = resources.getDimensionPixelSize(id)
-        fun scaledPx(id: Int): Int = (px(id) * uiScale).roundToInt().coerceAtLeast(0)
+        val scaler = requireContext().uiScaler(uiScale)
+        fun scaledPx(id: Int): Int = scaler.scaledDimenPx(id)
 
         val width =
             scaledPx(
-                blbl.cat3399.R.dimen.dynamic_following_panel_width_tv,
+                blbl.cat3399.R.dimen.dynamic_following_panel_width,
             )
         val margin =
             scaledPx(
-                blbl.cat3399.R.dimen.dynamic_following_panel_margin_tv,
+                blbl.cat3399.R.dimen.dynamic_following_panel_margin,
             )
         val padding =
             scaledPx(
-                blbl.cat3399.R.dimen.dynamic_following_list_padding_tv,
+                blbl.cat3399.R.dimen.dynamic_following_list_padding,
             )
 
         val cardLp = binding.cardFollowing.layoutParams

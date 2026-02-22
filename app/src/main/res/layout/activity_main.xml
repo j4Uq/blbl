@@ -7,7 +7,7 @@
 
     <LinearLayout
         android:id="@+id/sidebar"
-        android:layout_width="@dimen/sidebar_width_normal"
+        android:layout_width="@dimen/sidebar_width"
         android:layout_height="0dp"
         android:background="@color/blbl_bg"
         android:clipChildren="false"

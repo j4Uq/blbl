@@ -8,11 +8,8 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import blbl.cat3399.BuildConfig
 import blbl.cat3399.core.net.BiliClient
-import blbl.cat3399.core.ui.BackButtonSizingHelper
 import blbl.cat3399.core.ui.FocusTreeUtils
-import blbl.cat3399.core.ui.UiScale
 import blbl.cat3399.databinding.ActivitySettingsBinding
-import kotlin.math.roundToInt
 
 class SettingsRenderer(
     private val activity: SettingsActivity,
@@ -57,21 +54,6 @@ class SettingsRenderer(
     fun uninstallFocusListener() {
         focusListener?.let { binding.root.viewTreeObserver.removeOnGlobalFocusChangeListener(it) }
         focusListener = null
-    }
-
-    fun applyUiMode() {
-        val uiScale = UiScale.factor(activity, BiliClient.prefs.sidebarSize)
-        val widthPx = (dp(360f) * uiScale).roundToInt().coerceAtLeast(1)
-        val lp = binding.recyclerLeft.layoutParams
-        if (lp.width != widthPx) {
-            lp.width = widthPx
-            binding.recyclerLeft.layoutParams = lp
-        }
-        BackButtonSizingHelper.applySidebarSizing(
-            view = binding.btnBack,
-            resources = activity.resources,
-            sidebarScale = uiScale,
-        )
     }
 
     fun showSection(index: Int, keepScroll: Boolean = index == state.currentSectionIndex, focusId: SettingId? = null) {
@@ -153,11 +135,6 @@ class SettingsRenderer(
         }
     }
 
-    private fun dp(valueDp: Float): Int {
-        val dm = activity.resources.displayMetrics
-        return (valueDp * dm.density).toInt()
-    }
-
     private fun buildEntriesForSection(sectionName: String?): List<SettingEntry> {
         val prefs = BiliClient.prefs
         return when (sectionName) {
@@ -182,7 +159,7 @@ class SettingsRenderer(
                         null,
                     ),
                     SettingEntry(SettingId.PgcGridSpanCount, "番剧/电视剧每行卡片数量", SettingsText.gridSpanText(prefs.pgcGridSpanCount), null),
-                    SettingEntry(SettingId.SidebarSize, "界面大小", SettingsText.sidebarSizeText(prefs.sidebarSize), null),
+                    SettingEntry(SettingId.UiScaleFactor, "界面大小", SettingsText.uiScaleFactorText(prefs.uiScaleFactor), null),
                     SettingEntry(SettingId.FullscreenEnabled, "以全屏模式运行", if (prefs.fullscreenEnabled) "开" else "关", null),
                     SettingEntry(SettingId.TabSwitchFollowsFocus, "tab跟随焦点切换", if (prefs.tabSwitchFollowsFocus) "开" else "关", null),
                 )

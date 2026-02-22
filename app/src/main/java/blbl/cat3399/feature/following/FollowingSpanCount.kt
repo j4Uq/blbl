@@ -3,7 +3,7 @@ package blbl.cat3399.feature.following
 import android.content.Context
 import blbl.cat3399.R
 import blbl.cat3399.core.ui.UiScale
-import kotlin.math.roundToInt
+import blbl.cat3399.core.ui.uiScaler
 
 fun followingSpanCountForWidth(context: Context): Int {
     val resources = context.resources
@@ -13,10 +13,11 @@ fun followingSpanCountForWidth(context: Context): Int {
     val availablePx = (widthPx - recyclerPaddingPx).coerceAtLeast(1)
 
     val uiScale = UiScale.factor(context)
-    fun scaledPx(id: Int): Int = (resources.getDimensionPixelSize(id) * uiScale).roundToInt().coerceAtLeast(0)
-    val itemMargin = scaledPx(R.dimen.following_grid_item_margin_tv)
-    val itemPadding = scaledPx(R.dimen.following_grid_item_padding_tv)
-    val avatarSize = scaledPx(R.dimen.following_grid_avatar_size_tv)
+    val scaler = context.uiScaler(uiScale)
+    fun scaledPx(id: Int): Int = scaler.scaledDimenPx(id)
+    val itemMargin = scaledPx(R.dimen.following_grid_item_margin)
+    val itemPadding = scaledPx(R.dimen.following_grid_item_padding)
+    val avatarSize = scaledPx(R.dimen.following_grid_avatar_size)
 
     // Match item_following_grid + FollowingGridAdapter sizing:
     // columnWidth >= left/right margins + left/right padding + avatarSize

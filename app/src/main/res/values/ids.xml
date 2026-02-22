@@ -6,4 +6,9 @@
     <item name="tag_app_toast_view" type="id" />
     <item name="tag_app_toast_hide_runnable" type="id" />
     <item name="tag_player_list_panel_base_metrics" type="id" />
+    <item name="tag_player_side_panels_base_metrics" type="id" />
+    <item name="tag_tab_text_scale_fix_pending" type="id" />
+    <item name="tag_tab_text_scale_fix_listener" type="id" />
+    <item name="tag_user_scale_tab_custom_view" type="id" />
+    <item name="tag_user_scale_tab_text_appearance_res" type="id" />
 </resources>

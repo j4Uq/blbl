@@ -20,6 +20,8 @@ import blbl.cat3399.core.ui.DpadGridController
 import blbl.cat3399.core.ui.FocusTreeUtils
 import blbl.cat3399.core.ui.UiScale
 import blbl.cat3399.core.ui.postIfAlive
+import blbl.cat3399.core.ui.setTextSizePxIfChanged
+import blbl.cat3399.core.ui.uiScaler
 import blbl.cat3399.databinding.FragmentMyFavFolderDetailBinding
 import blbl.cat3399.feature.following.openUpDetailFromVideoCard
 import blbl.cat3399.feature.player.PlayerActivity
@@ -36,7 +38,8 @@ class MyFavFolderDetailFragment : Fragment(), RefreshKeyHandler {
     private val binding get() = _binding!!
 
     private lateinit var adapter: VideoCardAdapter
-    private var lastUiScaleFactor: Float? = null
+    private var lastAppliedHeaderSizingScale: Float? = null
+    private var baseTitleTextSizePx: Float? = null
 
     private val mediaId: Long by lazy { requireArguments().getLong(ARG_MEDIA_ID) }
     private val title: String by lazy { requireArguments().getString(ARG_TITLE).orEmpty() }
@@ -57,6 +60,7 @@ class MyFavFolderDetailFragment : Fragment(), RefreshKeyHandler {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         binding.btnBack.setOnClickListener { parentFragmentManager.popBackStackImmediate() }
         binding.tvTitle.text = title.ifBlank { getString(R.string.my_fav_default_title) }
+        applyHeaderSizing(uiScale = UiScale.factor(requireContext()))
 
         if (!::adapter.isInitialized) {
             adapter =
@@ -167,21 +171,28 @@ class MyFavFolderDetailFragment : Fragment(), RefreshKeyHandler {
             resetAndLoad()
         }
 
-        lastUiScaleFactor = UiScale.factor(requireContext())
     }
 
     override fun onResume() {
         super.onResume()
-        val old = lastUiScaleFactor
-        val now = UiScale.factor(requireContext())
-        lastUiScaleFactor = now
         applyBackButtonSizing()
-        if (this::adapter.isInitialized && old != null && old != now) adapter.invalidateSizing()
         (binding.recycler.layoutManager as? GridLayoutManager)?.spanCount = spanCountForWidth(resources)
     }
 
+    private fun applyHeaderSizing(uiScale: Float) {
+        val b = _binding ?: return
+        val scale = uiScale.takeIf { it.isFinite() && it > 0f } ?: 1.0f
+        if (lastAppliedHeaderSizingScale == scale) return
+
+        val scaler = requireContext().uiScaler(scale)
+        val baseTs = baseTitleTextSizePx ?: b.tvTitle.textSize.also { baseTitleTextSizePx = it }
+        b.tvTitle.setTextSizePxIfChanged(scaler.scaledPxF(baseTs, minPx = 1f))
+
+        lastAppliedHeaderSizingScale = scale
+    }
+
     private fun applyBackButtonSizing() {
-        val sidebarScale = UiScale.factor(requireContext(), BiliClient.prefs.sidebarSize)
+        val sidebarScale = UiScale.factor(requireContext())
         BackButtonSizingHelper.applySidebarSizing(
             view = binding.btnBack,
             resources = resources,

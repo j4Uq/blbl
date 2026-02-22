@@ -57,8 +57,9 @@ class MyTabsFragment : Fragment(), MyTabContentSwitchFocusHost, BackPressHandler
             },
         )
 
-        val tabLayout = binding.tabLayout
-        tabLayout.postIfAlive(isAlive = { _binding != null }) {
+        val b = binding
+        val tabLayout = b.tabLayout
+        tabLayout.postIfAlive(isAlive = { _binding === b }) {
             tabLayout.enableDpadTabFocus(selectOnFocusProvider = { BiliClient.prefs.tabSwitchFollowsFocus }) { position ->
                 AppLog.d("My", "tab focus pos=$position t=${SystemClock.uptimeMillis()}")
             }

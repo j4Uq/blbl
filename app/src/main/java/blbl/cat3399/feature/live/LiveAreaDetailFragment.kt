@@ -180,7 +180,7 @@ class LiveAreaDetailFragment : Fragment() {
 
     private fun applyBackButtonSizing() {
         val b = _binding ?: return
-        val sidebarScale = UiScale.factor(requireContext(), BiliClient.prefs.sidebarSize)
+        val sidebarScale = UiScale.factor(requireContext())
         BackButtonSizingHelper.applySidebarSizing(
             view = b.btnBack,
             resources = b.root.resources,

@@ -3,6 +3,7 @@ package blbl.cat3399.feature.live
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
+import blbl.cat3399.core.ui.cloneInUserScale
 import blbl.cat3399.databinding.ItemLiveChatBinding
 
 class LiveChatAdapter : RecyclerView.Adapter<LiveChatAdapter.Vh>() {
@@ -20,7 +21,12 @@ class LiveChatAdapter : RecyclerView.Adapter<LiveChatAdapter.Vh>() {
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Vh {
-        val binding = ItemLiveChatBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        val binding =
+            ItemLiveChatBinding.inflate(
+                LayoutInflater.from(parent.context).cloneInUserScale(parent.context),
+                parent,
+                false,
+            )
         return Vh(binding)
     }
 
@@ -35,4 +41,3 @@ class LiveChatAdapter : RecyclerView.Adapter<LiveChatAdapter.Vh>() {
         }
     }
 }
-

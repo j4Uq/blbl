@@ -2,6 +2,7 @@ package blbl.cat3399.core.prefs
 
 import android.content.Context
 import org.json.JSONArray
+import kotlin.math.roundToInt
 
 class AppPrefs(context: Context) {
     private val prefs = context.getSharedPreferences("blbl_prefs", Context.MODE_PRIVATE)
@@ -22,13 +23,23 @@ class AppPrefs(context: Context) {
         get() = prefs.getLong(KEY_BILI_TICKET_CHECKED_EPOCH_DAY, -1L)
         set(value) = prefs.edit().putLong(KEY_BILI_TICKET_CHECKED_EPOCH_DAY, value).apply()
 
-    var uiMode: String
-        get() = prefs.getString(KEY_UI_MODE, UI_MODE_AUTO) ?: UI_MODE_AUTO
-        set(value) = prefs.edit().putString(KEY_UI_MODE, value).apply()
-
     var sidebarSize: String
         get() = prefs.getString(KEY_SIDEBAR_SIZE, SIDEBAR_SIZE_MEDIUM) ?: SIDEBAR_SIZE_MEDIUM
         set(value) = prefs.edit().putString(KEY_SIDEBAR_SIZE, value).apply()
+
+    var uiScaleFactor: Float
+        get() {
+            if (prefs.contains(KEY_UI_SCALE_FACTOR)) {
+                return normalizeUiScaleFactor(prefs.getFloat(KEY_UI_SCALE_FACTOR, UI_SCALE_FACTOR_DEFAULT))
+            }
+            // Legacy fallback (kept for migration): sidebar_size small/medium/large -> 0.90/1.00/1.10.
+            return when (sidebarSize) {
+                SIDEBAR_SIZE_SMALL -> 0.90f
+                SIDEBAR_SIZE_LARGE -> 1.10f
+                else -> UI_SCALE_FACTOR_DEFAULT
+            }
+        }
+        set(value) = prefs.edit().putFloat(KEY_UI_SCALE_FACTOR, normalizeUiScaleFactor(value)).apply()
 
     var startupPage: String
         get() = prefs.getString(KEY_STARTUP_PAGE, STARTUP_PAGE_HOME)?.trim()?.takeIf { it.isNotBlank() } ?: STARTUP_PAGE_HOME
@@ -412,11 +423,16 @@ class AppPrefs(context: Context) {
         return out
     }
 
-    companion object {
-        const val UI_MODE_AUTO = "auto"
-        const val UI_MODE_TV = "tv"
-        const val UI_MODE_NORMAL = "normal"
+    private fun normalizeUiScaleFactor(value: Float): Float {
+        val v = if (value.isFinite()) value else UI_SCALE_FACTOR_DEFAULT
+        val clamped = v.coerceIn(UI_SCALE_FACTOR_MIN, UI_SCALE_FACTOR_MAX)
+        val scaled = (clamped * 100f).roundToInt()
+        val step = (UI_SCALE_FACTOR_STEP * 100f).roundToInt().coerceAtLeast(1)
+        val snapped = ((scaled + step / 2) / step) * step
+        return (snapped / 100f).coerceIn(UI_SCALE_FACTOR_MIN, UI_SCALE_FACTOR_MAX)
+    }
 
+    companion object {
         const val STARTUP_PAGE_HOME = "home"
         const val STARTUP_PAGE_CATEGORY = "category"
         const val STARTUP_PAGE_DYNAMIC = "dynamic"
@@ -426,6 +442,11 @@ class AppPrefs(context: Context) {
         const val SIDEBAR_SIZE_SMALL = "small"
         const val SIDEBAR_SIZE_MEDIUM = "medium"
         const val SIDEBAR_SIZE_LARGE = "large"
+
+        const val UI_SCALE_FACTOR_MIN = 0.70f
+        const val UI_SCALE_FACTOR_MAX = 1.40f
+        const val UI_SCALE_FACTOR_STEP = 0.05f
+        const val UI_SCALE_FACTOR_DEFAULT = 1.00f
 
         private const val KEY_DISCLAIMER_ACCEPTED = "disclaimer_accepted"
         private const val KEY_WEB_REFRESH_TOKEN = "web_refresh_token"
@@ -437,8 +458,8 @@ class AppPrefs(context: Context) {
         private const val KEY_DEVICE_BUVID = "device_buvid"
         private const val KEY_BUVID_ACTIVATED_MID = "buvid_activated_mid"
         private const val KEY_BUVID_ACTIVATED_EPOCH_DAY = "buvid_activated_epoch_day"
-        private const val KEY_UI_MODE = "ui_mode"
         private const val KEY_SIDEBAR_SIZE = "sidebar_size"
+        private const val KEY_UI_SCALE_FACTOR = "ui_scale_factor"
         private const val KEY_STARTUP_PAGE = "startup_page"
         private const val KEY_IMAGE_QUALITY = "image_quality"
         private const val KEY_DANMAKU_ENABLED = "danmaku_enabled"

@@ -22,6 +22,8 @@ import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.ui.AppToast
 import blbl.cat3399.core.ui.Immersive
 import blbl.cat3399.core.ui.SingleChoiceDialog
+import blbl.cat3399.core.ui.cloneInUserScale
+import blbl.cat3399.core.ui.userScaledContext
 import blbl.cat3399.core.update.ApkUpdater
 import blbl.cat3399.feature.risk.GaiaVgateActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -51,6 +53,10 @@ class SettingsInteractionHandler(
     private var exportLogsJob: Job? = null
     private var clearCacheJob: Job? = null
     private var cacheSizeJob: Job? = null
+
+    private fun dialogContext(): Context = activity.userScaledContext()
+
+    private fun dialogInflater() = activity.layoutInflater.cloneInUserScale(activity)
 
     fun onSectionShown(sectionName: String) {
         when (sectionName) {
@@ -201,21 +207,19 @@ class SettingsInteractionHandler(
                 }
             }
 
-            SettingId.SidebarSize -> {
-                val options = listOf("小", "中", "大")
+            SettingId.UiScaleFactor -> {
+                val factors = (70..140 step 5).map { it / 100f }
+                val items = factors.map { SettingsText.uiScaleFactorText(it) }
                 showChoiceDialog(
                     title = "界面大小",
-                    items = options,
-                    current = SettingsText.sidebarSizeText(prefs.sidebarSize),
+                    items = items,
+                    current = SettingsText.uiScaleFactorText(prefs.uiScaleFactor),
                 ) { selected ->
-                    prefs.sidebarSize =
-                        when (selected) {
-                            "小" -> blbl.cat3399.core.prefs.AppPrefs.SIDEBAR_SIZE_SMALL
-                            "大" -> blbl.cat3399.core.prefs.AppPrefs.SIDEBAR_SIZE_LARGE
-                            else -> blbl.cat3399.core.prefs.AppPrefs.SIDEBAR_SIZE_MEDIUM
-                        }
+                    val factor = factors.getOrNull(items.indexOf(selected)) ?: prefs.uiScaleFactor
+                    prefs.uiScaleFactor = factor
                     AppToast.show(activity, "界面大小：$selected")
-                    renderer.refreshSection(entry.id)
+                    // Accept "recreate to apply" to keep UI scale management centralized and reduce per-module sizing code.
+                    activity.recreate()
                 }
             }
 
@@ -678,6 +682,7 @@ class SettingsInteractionHandler(
 
     private fun showPlayerOsdButtonsDialog(sectionIndex: Int, focusId: SettingId) {
         val prefs = BiliClient.prefs
+        val dialogContext = dialogContext()
         val options =
             listOf(
                 blbl.cat3399.core.prefs.AppPrefs.PLAYER_OSD_BTN_PREV to "上一个",
@@ -700,7 +705,7 @@ class SettingsInteractionHandler(
         val checked = BooleanArray(keys.size) { idx -> selected.contains(keys[idx]) }
 
         val dialog =
-            MaterialAlertDialogBuilder(activity)
+            MaterialAlertDialogBuilder(dialogContext)
                 .setTitle("OSD按钮显示")
                 .setMultiChoiceItems(labels, checked) { _, which, isChecked ->
                     val key = keys[which]
@@ -719,14 +724,15 @@ class SettingsInteractionHandler(
 
     private fun showUserAgentDialog(sectionIndex: Int, focusId: SettingId) {
         val prefs = BiliClient.prefs
+        val dialogContext = dialogContext()
         val input =
-            EditText(activity).apply {
+            EditText(dialogContext).apply {
                 setText(prefs.userAgent)
                 setSelection(text.length)
                 inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_VARIATION_NORMAL
                 minLines = 3
             }
-        MaterialAlertDialogBuilder(activity)
+        MaterialAlertDialogBuilder(dialogContext)
             .setTitle("User-Agent")
             .setView(input)
             .setPositiveButton("保存") { _, _ ->
@@ -749,7 +755,7 @@ class SettingsInteractionHandler(
     }
 
     private fun showClearLoginDialog(sectionIndex: Int, focusId: SettingId) {
-        MaterialAlertDialogBuilder(activity)
+        MaterialAlertDialogBuilder(dialogContext())
             .setTitle("清除登录")
             .setMessage("将清除 Cookie（SESSDATA 等），需要重新登录。确定继续吗？")
             .setPositiveButton("确定清除") { _, _ ->
@@ -776,7 +782,7 @@ class SettingsInteractionHandler(
             return
         }
 
-        MaterialAlertDialogBuilder(activity)
+        MaterialAlertDialogBuilder(dialogContext())
             .setTitle("清理缓存")
             .setMessage("确定清理缓存？")
             .setPositiveButton("清理") { _, _ -> startClearCache(sectionIndex, focusId) }
@@ -786,7 +792,8 @@ class SettingsInteractionHandler(
 
     private fun startClearCache(sectionIndex: Int, focusId: SettingId) {
         cacheSizeJob?.cancel()
-        val view = activity.layoutInflater.inflate(blbl.cat3399.R.layout.dialog_test_update_progress, null, false)
+        val dialogContext = dialogContext()
+        val view = dialogInflater().inflate(blbl.cat3399.R.layout.dialog_test_update_progress, null, false)
         val tvStatus = view.findViewById<TextView>(blbl.cat3399.R.id.tv_status)
         val progress = view.findViewById<LinearProgressIndicator>(blbl.cat3399.R.id.progress)
         progress.isIndeterminate = true
@@ -794,7 +801,7 @@ class SettingsInteractionHandler(
         tvStatus.text = "清理中…"
 
         val dialog =
-            MaterialAlertDialogBuilder(activity)
+            MaterialAlertDialogBuilder(dialogContext)
                 .setTitle("清理中")
                 .setView(view)
                 .setNegativeButton("取消") { _, _ -> clearCacheJob?.cancel() }
@@ -913,7 +920,7 @@ class SettingsInteractionHandler(
         }
 
         if (Build.VERSION.SDK_INT >= 26 && !activity.packageManager.canRequestPackageInstalls()) {
-            MaterialAlertDialogBuilder(activity)
+            MaterialAlertDialogBuilder(dialogContext())
                 .setTitle("需要授权安装")
                 .setMessage("更新需要允许“安装未知应用”。现在去设置开启吗？")
                 .setPositiveButton("去设置") { _, _ ->
@@ -938,7 +945,8 @@ class SettingsInteractionHandler(
             return
         }
 
-        val view = activity.layoutInflater.inflate(blbl.cat3399.R.layout.dialog_test_update_progress, null, false)
+        val dialogContext = dialogContext()
+        val view = dialogInflater().inflate(blbl.cat3399.R.layout.dialog_test_update_progress, null, false)
         val tvStatus = view.findViewById<TextView>(blbl.cat3399.R.id.tv_status)
         val progress = view.findViewById<LinearProgressIndicator>(blbl.cat3399.R.id.progress)
         progress.isIndeterminate = true
@@ -946,7 +954,7 @@ class SettingsInteractionHandler(
         tvStatus.text = "检查更新…"
 
         val dialog =
-            MaterialAlertDialogBuilder(activity)
+            MaterialAlertDialogBuilder(dialogContext)
                 .setTitle("下载更新")
                 .setView(view)
                 .setNegativeButton("取消") { _, _ -> testUpdateJob?.cancel() }
@@ -1027,7 +1035,7 @@ class SettingsInteractionHandler(
     }
 
     private fun showProjectDialog() {
-        MaterialAlertDialogBuilder(activity)
+        MaterialAlertDialogBuilder(dialogContext())
             .setTitle("项目地址")
             .setMessage(SettingsConstants.PROJECT_URL)
             .setPositiveButton("打开") { _, _ -> openUrl(SettingsConstants.PROJECT_URL) }
@@ -1100,7 +1108,7 @@ class SettingsInteractionHandler(
                 }
             }
 
-        MaterialAlertDialogBuilder(activity)
+        MaterialAlertDialogBuilder(dialogContext())
             .setTitle("风控验证")
             .setMessage(msg)
             .setPositiveButton(if (hasVoucher) "开始验证" else "粘贴 v_voucher") { _, _ ->
@@ -1122,14 +1130,15 @@ class SettingsInteractionHandler(
 
     private fun showGaiaVgateVoucherDialog(sectionIndex: Int, focusId: SettingId) {
         val prefs = BiliClient.prefs
+        val dialogContext = dialogContext()
         val input =
-            EditText(activity).apply {
+            EditText(dialogContext).apply {
                 setText(prefs.gaiaVgateVVoucher.orEmpty())
                 setSelection(text.length)
                 hint = "粘贴 v_voucher"
                 inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_NORMAL
             }
-        MaterialAlertDialogBuilder(activity)
+        MaterialAlertDialogBuilder(dialogContext)
             .setTitle("编辑 v_voucher")
             .setView(input)
             .setPositiveButton("保存") { _, _ ->

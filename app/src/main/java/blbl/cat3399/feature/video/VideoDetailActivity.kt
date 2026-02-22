@@ -18,11 +18,10 @@ import blbl.cat3399.core.log.AppLog
 import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.ui.ActivityStackLimiter
 import blbl.cat3399.core.ui.AppToast
-import blbl.cat3399.core.ui.BackButtonSizingHelper
 import blbl.cat3399.core.ui.BaseActivity
 import blbl.cat3399.core.ui.GridSpanPolicy
 import blbl.cat3399.core.ui.Immersive
-import blbl.cat3399.core.ui.UiScale
+import blbl.cat3399.core.ui.cloneInUserScale
 import blbl.cat3399.core.util.parseBangumiRedirectUrl
 import blbl.cat3399.databinding.ActivityVideoDetailBinding
 import blbl.cat3399.feature.following.UpDetailActivity
@@ -138,7 +137,6 @@ class VideoDetailActivity : BaseActivity() {
         super.onResume()
         Immersive.apply(this, BiliClient.prefs.fullscreenEnabled)
         if (!this::binding.isInitialized) return
-        applyUiMode()
         if (this::headerAdapter.isInitialized) headerAdapter.invalidateSizing()
         if (this::recommendAdapter.isInitialized) recommendAdapter.invalidateSizing()
     }
@@ -146,15 +144,6 @@ class VideoDetailActivity : BaseActivity() {
     override fun onDestroy() {
         ActivityStackLimiter.unregister(group = ACTIVITY_STACK_GROUP, activity = this)
         super.onDestroy()
-    }
-
-    private fun applyUiMode() {
-        val sidebarScale = UiScale.factor(this, BiliClient.prefs.sidebarSize)
-        BackButtonSizingHelper.applySidebarSizing(
-            view = binding.btnBack,
-            resources = resources,
-            sidebarScale = sidebarScale,
-        )
     }
 
     private fun showLoadingUi() {
@@ -175,10 +164,9 @@ class VideoDetailActivity : BaseActivity() {
     }
 
     private fun initUi() {
-        binding = ActivityVideoDetailBinding.inflate(layoutInflater)
+        binding = ActivityVideoDetailBinding.inflate(layoutInflater.cloneInUserScale(this))
         setContentView(binding.root)
         Immersive.apply(this, BiliClient.prefs.fullscreenEnabled)
-        applyUiMode()
 
         binding.btnBack.setOnClickListener { finish() }
 

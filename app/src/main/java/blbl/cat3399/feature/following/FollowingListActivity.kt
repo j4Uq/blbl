@@ -16,12 +16,11 @@ import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.paging.PagedGridStateMachine
 import blbl.cat3399.core.paging.appliedOrNull
 import blbl.cat3399.core.tv.RemoteKeys
-import blbl.cat3399.core.ui.BackButtonSizingHelper
 import blbl.cat3399.core.ui.AppToast
 import blbl.cat3399.core.ui.BaseActivity
 import blbl.cat3399.core.ui.DpadGridController
 import blbl.cat3399.core.ui.Immersive
-import blbl.cat3399.core.ui.UiScale
+import blbl.cat3399.core.ui.cloneInUserScale
 import blbl.cat3399.databinding.ActivityFollowingListBinding
 import blbl.cat3399.feature.login.QrLoginActivity
 import kotlinx.coroutines.CancellationException
@@ -41,10 +40,9 @@ class FollowingListActivity : BaseActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityFollowingListBinding.inflate(layoutInflater)
+        binding = ActivityFollowingListBinding.inflate(layoutInflater.cloneInUserScale(this))
         setContentView(binding.root)
         Immersive.apply(this, BiliClient.prefs.fullscreenEnabled)
-        applyUiMode()
 
         binding.btnBack.setOnClickListener { finish() }
         binding.btnLogin.setOnClickListener { startActivity(Intent(this, QrLoginActivity::class.java)) }
@@ -121,19 +119,9 @@ class FollowingListActivity : BaseActivity() {
         }
     }
 
-    private fun applyUiMode() {
-        val sidebarScale = UiScale.factor(this, BiliClient.prefs.sidebarSize)
-        BackButtonSizingHelper.applySidebarSizing(
-            view = binding.btnBack,
-            resources = resources,
-            sidebarScale = sidebarScale,
-        )
-    }
-
     override fun onResume() {
         super.onResume()
         Immersive.apply(this, BiliClient.prefs.fullscreenEnabled)
-        applyUiMode()
         adapter.invalidateSizing()
         (binding.recycler.layoutManager as? GridLayoutManager)?.spanCount = spanCountForWidth()
         // If user just came back from login, allow re-checking.
@@ -305,7 +293,7 @@ class FollowingListActivity : BaseActivity() {
     }
 
     private fun spanCountForWidth(): Int {
-        return followingSpanCountForWidth(this)
+        return followingSpanCountForWidth(binding.root.context)
     }
 
     override fun onDestroy() {

@@ -79,8 +79,9 @@ class HomeFragment : Fragment(), VideoGridTabSwitchFocusHost, BackPressHandler {
                 }
             },
         )
-        val tabLayout = binding.tabLayout
-        tabLayout.postIfAlive(isAlive = { _binding != null }) {
+        val b = binding
+        val tabLayout = b.tabLayout
+        tabLayout.postIfAlive(isAlive = { _binding === b }) {
             tabLayout.enableDpadTabFocus(selectOnFocusProvider = { BiliClient.prefs.tabSwitchFollowsFocus }) { position ->
                 AppLog.d("Home", "tab focus pos=$position t=${SystemClock.uptimeMillis()}")
             }
@@ -115,6 +116,10 @@ class HomeFragment : Fragment(), VideoGridTabSwitchFocusHost, BackPressHandler {
                 }
             }
         binding.viewPager.registerOnPageChangeCallback(pageCallback!!)
+    }
+
+    override fun onResume() {
+        super.onResume()
     }
 
     override fun handleBackPressed(): Boolean {

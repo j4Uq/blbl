@@ -18,7 +18,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
-        <com.google.android.material.tabs.TabLayout
+        <blbl.cat3399.core.ui.UserScaleTabLayout
             android:id="@+id/tab_layout"
             style="@style/Widget.Blbl.TabLayout"
             android:layout_width="match_parent"
