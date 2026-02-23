@@ -34,6 +34,7 @@ internal class DanmakuPlayer(
         private const val MSG_OP_TRIM_RANGE = 3103
         private const val MSG_OP_TRIM_MAX = 3104
         private const val MSG_OP_SEEK = 3105
+        private const val MSG_OP_CLEAR = 3106
         private const val MSG_OP_VIEWPORT = 3201
         private const val MSG_OP_CONFIG = 3202
         private const val MSG_OP_RELEASE = 3999
@@ -46,11 +47,8 @@ internal class DanmakuPlayer(
             onRenderSign = { view.invalidateDanmakuAreaOnAnimation() },
         )
 
-    private val engine =
-        DanmakuEngine(
-            displayMetrics = view.resources.displayMetrics,
-            cacheManager = cacheManager,
-        )
+    private val engineMain: DanmakuEngineMainApi
+    private val engineAction: DanmakuEngineActionApi
     private val timer = DanmakuTimer()
 
     private val drawSemaphore = Semaphore(0)
@@ -98,7 +96,19 @@ internal class DanmakuPlayer(
     @Volatile
     private var latestConfig: DanmakuConfig? = null
 
-    internal fun debugSnapshot(): RenderSnapshot = engine.renderSnapshot()
+    internal fun debugSnapshot(): RenderSnapshot = engineMain.renderSnapshot()
+
+    private var lastEnabled: Boolean = true
+
+    init {
+        val engine =
+            DanmakuEngine(
+                displayMetrics = view.resources.displayMetrics,
+                cacheManager = cacheManager,
+            )
+        engineMain = engine
+        engineAction = engine
+    }
 
     fun startIfNeeded() {
         if (released) return
@@ -140,8 +150,8 @@ internal class DanmakuPlayer(
         return DebugState(
             updateAvgMs = avgMs,
             updateMaxMs = maxMs,
-            cachedDrawn = engine.lastDrawCachedCount(),
-            fallbackDrawn = engine.lastDrawFallbackCount(),
+            cachedDrawn = engineMain.lastDrawCachedCount(),
+            fallbackDrawn = engineMain.lastDrawFallbackCount(),
             cacheQueueDepth = cacheManager.queueDepth(),
             poolCount = pool.count,
             poolBytes = pool.bytes,
@@ -223,10 +233,16 @@ internal class DanmakuPlayer(
     ) {
         if (released) return
         if (!config.enabled) {
-            stop()
-            engine.clear()
+            if (lastEnabled || started) {
+                stop()
+            }
+            if (lastEnabled) {
+                requestClear()
+            }
+            lastEnabled = false
             return
         }
+        lastEnabled = true
         if (isPlaying) {
             startIfNeeded()
         } else if (started) {
@@ -237,7 +253,7 @@ internal class DanmakuPlayer(
         }
 
         val frameId = uiFrameId.incrementAndGet()
-        engine.drainReleasedBitmaps(frameId)
+        engineMain.drainReleasedBitmaps(frameId)
         val nowNanos = System.nanoTime()
         val smoothPos =
             timer.step(
@@ -248,21 +264,27 @@ internal class DanmakuPlayer(
                 seekSerial = seekSerial.get(),
             )
 
-        engine.stepTime(positionMs = smoothPos, uiFrameId = frameId)
+        engineMain.stepTime(positionMs = smoothPos, uiFrameId = frameId)
 
         // Drain extra permits so we never accumulate >1.
         drawSemaphore.tryAcquire()
 
         // Obtain render snapshot first, then release semaphore to allow ActionThread to compute next frame.
-        val snapshot = engine.renderSnapshot()
+        val snapshot = engineMain.renderSnapshot()
         releaseSemaphoreIfNeeded()
-        engine.draw(canvas, snapshot, config)
+        engineMain.draw(canvas, snapshot, config)
     }
 
     private fun postFrameCallback() {
         if (released) return
         if (!started) return
         Choreographer.getInstance().postFrameCallback(frameCallback)
+    }
+
+    private fun requestClear() {
+        if (released) return
+        actionHandler.removeMessages(MSG_OP_CLEAR)
+        actionHandler.sendEmptyMessage(MSG_OP_CLEAR)
     }
 
     private fun releaseSemaphoreIfNeeded() {
@@ -278,13 +300,13 @@ internal class DanmakuPlayer(
                     if (released || !started) return
                     postFrameCallback()
                     try {
-                        engine.preAct()
+                        engineAction.preAct()
                         drawSemaphore.acquire()
                         if (released || !started) return
                         val sampleAct = perfSampleRequested.getAndSet(false)
                         val shouldMeasure = debugEnabled || sampleAct
                         val t0 = if (shouldMeasure) System.nanoTime() else 0L
-                        engine.act()
+                        engineAction.act()
                         if (shouldMeasure) {
                             val t1 = System.nanoTime()
                             val ns = (t1 - t0).coerceAtLeast(0L)
@@ -308,37 +330,41 @@ internal class DanmakuPlayer(
 
                 MSG_OP_SET -> {
                     @Suppress("UNCHECKED_CAST")
-                    engine.setDanmakus(msg.obj as? List<Danmaku> ?: emptyList())
+                    engineAction.setDanmakus(msg.obj as? List<Danmaku> ?: emptyList())
                     renderOnceIfPaused()
                 }
 
                 MSG_OP_APPEND -> {
                     val p = msg.obj as? AppendPayload ?: return
-                    engine.appendDanmakus(p.list, alreadySorted = p.alreadySorted)
-                    if (p.maxItems > 0) engine.trimToMax(p.maxItems)
+                    engineAction.appendDanmakus(p.list, alreadySorted = p.alreadySorted)
+                    if (p.maxItems > 0) engineAction.trimToMax(p.maxItems)
                     renderOnceIfPaused()
                 }
 
                 MSG_OP_TRIM_RANGE -> {
                     val p = msg.obj as? TrimRangePayload ?: return
-                    engine.trimToTimeRange(p.minTimeMs, p.maxTimeMs)
+                    engineAction.trimToTimeRange(p.minTimeMs, p.maxTimeMs)
                     renderOnceIfPaused()
                 }
 
                 MSG_OP_SEEK -> {
                     val pos = (msg.obj as? Long) ?: 0L
-                    engine.seekTo(pos)
+                    engineAction.seekTo(pos)
                     renderOnceIfPaused(positionMs = pos)
                 }
 
                 MSG_OP_TRIM_MAX -> {
                     val maxItems = msg.arg1
-                    engine.trimToMax(maxItems)
+                    engineAction.trimToMax(maxItems)
                     renderOnceIfPaused()
                 }
 
+                MSG_OP_CLEAR -> {
+                    engineAction.clear()
+                }
+
                 MSG_OP_VIEWPORT -> {
-                    engine.updateViewport(
+                    engineAction.updateViewport(
                         width = viewportWidth,
                         height = viewportHeight,
                         topInsetPx = viewportTopInsetPx,
@@ -349,9 +375,9 @@ internal class DanmakuPlayer(
 
                 MSG_OP_CONFIG -> {
                     latestConfig?.let {
-                        engine.updateConfig(it)
+                        engineAction.updateConfig(it)
                         // Reset layout on config changes (text size/speed/area) to keep correctness simple.
-                        engine.seekTo(engine.currentPositionMs())
+                        engineAction.seekTo(engineAction.currentPositionMs())
                         renderOnceIfPaused()
                     }
                 }
@@ -362,7 +388,7 @@ internal class DanmakuPlayer(
                     started = false
                     runCatching { actionThread.quitSafely() }
                     runCatching { actionThread.join(80L) }
-                    engine.release()
+                    engineAction.release()
                     cacheManager.release()
                 }
             }
@@ -370,12 +396,12 @@ internal class DanmakuPlayer(
 
         private fun renderOnceIfPaused(positionMs: Long? = null) {
             if (released || started) return
-            val pos = positionMs ?: engine.currentPositionMs()
-            engine.stepTime(positionMs = pos, uiFrameId = uiFrameId.get())
+            val pos = positionMs ?: engineAction.currentPositionMs()
+            engineAction.stepTime(positionMs = pos, uiFrameId = uiFrameId.get())
             val sampleAct = perfSampleRequested.getAndSet(false)
             val shouldMeasure = debugEnabled || sampleAct
             val t0 = if (shouldMeasure) System.nanoTime() else 0L
-            runCatching { engine.act() }
+            runCatching { engineAction.act() }
             if (shouldMeasure) {
                 val t1 = System.nanoTime()
                 val ns = (t1 - t0).coerceAtLeast(0L)

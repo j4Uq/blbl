@@ -19,6 +19,50 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
+internal interface DanmakuEngineMainApi {
+    fun lastDrawCachedCount(): Int
+
+    fun lastDrawFallbackCount(): Int
+
+    fun stepTime(positionMs: Long, uiFrameId: Int)
+
+    fun drainReleasedBitmaps(uiFrameId: Int)
+
+    fun renderSnapshot(): RenderSnapshot
+
+    fun draw(canvas: Canvas, snapshot: RenderSnapshot, config: DanmakuConfig)
+}
+
+internal interface DanmakuEngineActionApi {
+    fun updateViewport(width: Int, height: Int, topInsetPx: Int, bottomInsetPx: Int)
+
+    fun updateConfig(newConfig: DanmakuConfig)
+
+    fun stepTime(positionMs: Long, uiFrameId: Int)
+
+    fun currentPositionMs(): Long
+
+    fun drainReleasedBitmaps(uiFrameId: Int)
+
+    fun preAct()
+
+    fun act()
+
+    fun setDanmakus(list: List<Danmaku>)
+
+    fun appendDanmakus(list: List<Danmaku>, alreadySorted: Boolean)
+
+    fun trimToMax(maxItems: Int)
+
+    fun trimToTimeRange(minTimeMs: Long, maxTimeMs: Long)
+
+    fun seekTo(positionMs: Long)
+
+    fun clear()
+
+    fun release()
+}
+
 /**
  * AkDanmaku-inspired engine:
  * - Runs act/update on ActionThread.
@@ -29,7 +73,7 @@ import kotlin.math.roundToInt
 internal class DanmakuEngine(
     private val displayMetrics: DisplayMetrics,
     private val cacheManager: CacheManager,
-) {
+) : DanmakuEngineMainApi, DanmakuEngineActionApi {
     private val density: Float = displayMetrics.density.takeIf { it.isFinite() && it > 0f } ?: 1f
     // ---- Data ----
     private var items: MutableList<DanmakuItem> = mutableListOf()
@@ -57,9 +101,9 @@ internal class DanmakuEngine(
     @Volatile private var lastDrawCachedCount: Int = 0
     @Volatile private var lastDrawFallbackCount: Int = 0
 
-    fun lastDrawCachedCount(): Int = lastDrawCachedCount
+    override fun lastDrawCachedCount(): Int = lastDrawCachedCount
 
-    fun lastDrawFallbackCount(): Int = lastDrawFallbackCount
+    override fun lastDrawFallbackCount(): Int = lastDrawFallbackCount
 
     // ---- Time (main writes; action reads) ----
     @Volatile private var currentPositionMs: Long = 0L
@@ -101,14 +145,14 @@ internal class DanmakuEngine(
     }
     private val emoteTmpRectF = RectF()
 
-    fun updateViewport(width: Int, height: Int, topInsetPx: Int, bottomInsetPx: Int) {
+    override fun updateViewport(width: Int, height: Int, topInsetPx: Int, bottomInsetPx: Int) {
         viewportWidth = width.coerceAtLeast(0)
         viewportHeight = height.coerceAtLeast(0)
         viewportTopInsetPx = topInsetPx.coerceAtLeast(0)
         viewportBottomInsetPx = bottomInsetPx.coerceAtLeast(0)
     }
 
-    fun updateConfig(newConfig: DanmakuConfig) {
+    override fun updateConfig(newConfig: DanmakuConfig) {
         config = newConfig
         val tsPx = sp(newConfig.textSizeSp).coerceAtLeast(1f)
         val oldTs = textSizePx
@@ -136,22 +180,22 @@ internal class DanmakuEngine(
     private fun sp(v: Float): Float =
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, v, displayMetrics)
 
-    fun stepTime(positionMs: Long, uiFrameId: Int) {
+    override fun stepTime(positionMs: Long, uiFrameId: Int) {
         currentPositionMs = positionMs.coerceAtLeast(0L)
         currentUiFrameId = uiFrameId
     }
 
-    fun currentPositionMs(): Long = currentPositionMs
+    override fun currentPositionMs(): Long = currentPositionMs
 
-    fun drainReleasedBitmaps(uiFrameId: Int) {
+    override fun drainReleasedBitmaps(uiFrameId: Int) {
         cacheManager.drainReleasedBitmaps(uiFrameId)
     }
 
-    fun preAct() {
+    override fun preAct() {
         // Reserved for future: cache prefetch / op coalescing.
     }
 
-    fun act() {
+    override fun act() {
         val cfg = config
         if (!cfg.enabled) {
             clearActives()
@@ -400,9 +444,9 @@ internal class DanmakuEngine(
         latestSnapshot = out
     }
 
-    fun renderSnapshot(): RenderSnapshot = latestSnapshot
+    override fun renderSnapshot(): RenderSnapshot = latestSnapshot
 
-    fun draw(canvas: Canvas, snapshot: RenderSnapshot, config: DanmakuConfig) {
+    override fun draw(canvas: Canvas, snapshot: RenderSnapshot, config: DanmakuConfig) {
         val cfg = config
         if (!cfg.enabled) return
 
@@ -460,7 +504,7 @@ internal class DanmakuEngine(
         lastDrawFallbackCount = fallbackDrawn
     }
 
-    fun setDanmakus(list: List<Danmaku>) {
+    override fun setDanmakus(list: List<Danmaku>) {
         clearActives()
         items =
             list
@@ -471,7 +515,7 @@ internal class DanmakuEngine(
         publishEmptySnapshot()
     }
 
-    fun appendDanmakus(list: List<Danmaku>, alreadySorted: Boolean) {
+    override fun appendDanmakus(list: List<Danmaku>, alreadySorted: Boolean) {
         if (list.isEmpty()) return
         if (items.isEmpty()) {
             setDanmakus(list)
@@ -498,7 +542,7 @@ internal class DanmakuEngine(
         publishEmptySnapshot()
     }
 
-    fun trimToMax(maxItems: Int) {
+    override fun trimToMax(maxItems: Int) {
         if (maxItems <= 0) return
         val drop = items.size - maxItems
         if (drop <= 0) return
@@ -506,7 +550,7 @@ internal class DanmakuEngine(
         index = (index - drop).coerceAtLeast(0)
     }
 
-    fun trimToTimeRange(minTimeMs: Long, maxTimeMs: Long) {
+    override fun trimToTimeRange(minTimeMs: Long, maxTimeMs: Long) {
         if (items.isEmpty()) return
         val min = minTimeMs.coerceAtLeast(0L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
         val max = maxTimeMs.coerceAtLeast(0L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
@@ -538,7 +582,7 @@ internal class DanmakuEngine(
         }
     }
 
-    fun seekTo(positionMs: Long) {
+    override fun seekTo(positionMs: Long) {
         val pos = positionMs.coerceAtLeast(0L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
         index = lowerBound(pos)
         clearActives()
@@ -547,13 +591,13 @@ internal class DanmakuEngine(
         publishEmptySnapshot()
     }
 
-    fun clear() {
+    override fun clear() {
         clearActives()
         pending.clear()
         publishEmptySnapshot()
     }
 
-    fun release() {
+    override fun release() {
         clear()
     }
 
