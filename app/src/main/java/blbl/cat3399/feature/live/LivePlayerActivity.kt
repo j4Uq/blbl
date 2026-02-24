@@ -373,6 +373,7 @@ class LivePlayerActivity : BaseActivity() {
             }
         binding.recyclerSettings.adapter = settingsAdapter
         binding.recyclerSettings.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
+        binding.recyclerSettings.itemAnimator = null
         binding.recyclerSettings.addOnChildAttachStateChangeListener(
             object : androidx.recyclerview.widget.RecyclerView.OnChildAttachStateChangeListener {
                 override fun onChildViewAttachedToWindow(view: View) {

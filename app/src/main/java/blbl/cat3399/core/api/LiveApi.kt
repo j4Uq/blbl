@@ -11,6 +11,8 @@ import org.json.JSONObject
 
 internal object LiveApi {
     private const val LIVE_AREAS_CACHE_TTL_MS = 12 * 60 * 60 * 1000L // 12h
+    private val LIVE_ORIGIN_INDEX_M3U8_REGEX = Regex("""(/live-bvc/\d+/live_\d+_\d+)(?:_[^/]+)?(/index\.m3u8)$""")
+    private val LIVE_ORIGIN_M3U8_REGEX = Regex("""(/live-bvc/\d+/live_\d+_\d+)(?:_[^/\.]+)?(\.m3u8)$""")
 
     private data class LiveAreasCache(
         val fetchedAtMs: Long,
@@ -237,7 +239,7 @@ internal object LiveApi {
         }
 
         val streamArr = playurl.optJSONArray("stream") ?: JSONArray()
-        val protocolOrder = listOf("http_stream", "http_hls")
+        val protocolOrder = listOf("http_hls", "http_stream")
         val formatOrderForProtocol =
             mapOf(
                 "http_stream" to listOf("flv", "fmp4", "ts"),
@@ -275,11 +277,11 @@ internal object LiveApi {
         }
 
         var pickedCodec: JSONObject? = null
-        pick@ for (protocol in protocolOrder) {
-            val formats = formatOrderForProtocol[protocol].orEmpty()
-            for (fmt in formats) {
-                for (c in codecOrder) {
-                    pickedCodec = pickCodec(protocol = protocol, format = fmt, codec = c)
+        pick@ for (codecName in codecOrder) {
+            for (protocol in protocolOrder) {
+                val formats = formatOrderForProtocol[protocol].orEmpty()
+                for (fmt in formats) {
+                    pickedCodec = pickCodec(protocol = protocol, format = fmt, codec = codecName)
                     if (pickedCodec != null) break@pick
                 }
             }
@@ -298,17 +300,57 @@ internal object LiveApi {
         val urlInfo = codec.optJSONArray("url_info") ?: JSONArray()
         val lines =
             buildList {
+                val seen = HashSet<String>(urlInfo.length() * 2)
+                var order = 1
                 for (i in 0 until urlInfo.length()) {
                     val obj = urlInfo.optJSONObject(i) ?: continue
                     val host = obj.optString("host", "").trim()
                     val extra = obj.optString("extra", "").trim()
                     if (host.isBlank() || baseUrl.isBlank()) continue
-                    val full = host + baseUrl + extra
-                    add(BiliApi.LivePlayLine(order = i + 1, url = full))
+
+                    val signed = host + baseUrl + extra
+                    val origin = tryBuildLiveOriginHlsUrl(host = host, baseUrl = baseUrl)
+
+                    if (!origin.isNullOrBlank() && seen.add(origin)) {
+                        add(BiliApi.LivePlayLine(order = order, url = origin))
+                        order += 1
+                    }
+                    if (seen.add(signed)) {
+                        add(BiliApi.LivePlayLine(order = order, url = signed))
+                        order += 1
+                    }
                 }
             }
 
         return BiliApi.LivePlayUrl(currentQn = currentQn, acceptQn = acceptQn, qnDesc = qnDesc, lines = lines)
+    }
+
+    internal fun tryBuildLiveOriginHlsUrl(host: String, baseUrl: String): String? {
+        val h = host.trim().trimEnd('/')
+        val base = baseUrl.trim()
+        if (h.isBlank() || base.isBlank()) return null
+        val path = base.substringBefore('?').trim()
+        val lower = path.lowercase()
+        if (!lower.endsWith(".m3u8")) return null
+        return h + rewriteLiveOriginM3u8Path(path)
+    }
+
+    internal fun rewriteLiveOriginM3u8Path(path: String): String {
+        val p = path.trim()
+        val lower = p.lowercase()
+        return when {
+            lower.endsWith("/index.m3u8") ->
+                LIVE_ORIGIN_INDEX_M3U8_REGEX.replace(p) { m ->
+                    m.groupValues[1] + m.groupValues[2]
+                }
+
+            lower.endsWith(".m3u8") ->
+                LIVE_ORIGIN_M3U8_REGEX.replace(p) { m ->
+                    m.groupValues[1] + m.groupValues[2]
+                }
+
+            else -> p
+        }
     }
 
     suspend fun liveDanmuInfo(roomId: Long): BiliApi.LiveDanmuInfo {

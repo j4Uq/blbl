@@ -51,6 +51,41 @@ class LiveApiParseTest {
     }
 
     @Test
+    fun rewriteLiveOriginM3u8Path_should_strip_transcode_suffix_for_index_m3u8() {
+        assertEquals(
+            "/live-bvc/682659/live_103128201_64134939/index.m3u8",
+            LiveApi.rewriteLiveOriginM3u8Path("/live-bvc/682659/live_103128201_64134939_2500/index.m3u8"),
+        )
+    }
+
+    @Test
+    fun rewriteLiveOriginM3u8Path_should_strip_transcode_suffix_for_m3u8_file() {
+        assertEquals(
+            "/live-bvc/251987/live_1805680_3999664.m3u8",
+            LiveApi.rewriteLiveOriginM3u8Path("/live-bvc/251987/live_1805680_3999664_minihevc.m3u8"),
+        )
+    }
+
+    @Test
+    fun tryBuildLiveOriginHlsUrl_should_drop_query_and_keep_signed_fallback_for_non_hls() {
+        val host = "https://d1--cn-gotcha204b.bilivideo.com"
+        assertEquals(
+            "https://d1--cn-gotcha204b.bilivideo.com/live-bvc/682659/live_103128201_64134939/index.m3u8",
+            LiveApi.tryBuildLiveOriginHlsUrl(
+                host = host,
+                baseUrl = "/live-bvc/682659/live_103128201_64134939_2500/index.m3u8?",
+            ),
+        )
+        assertEquals(
+            null,
+            LiveApi.tryBuildLiveOriginHlsUrl(
+                host = host,
+                baseUrl = "/live-bvc/682659/live_103128201_64134939_2500.flv?",
+            ),
+        )
+    }
+
+    @Test
     fun parseLiveFollowingRoom_should_parse_basic_fields() {
         val card =
             LiveApi.parseLiveFollowingRoom(
