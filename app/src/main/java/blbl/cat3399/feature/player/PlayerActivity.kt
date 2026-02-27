@@ -1352,13 +1352,13 @@ class PlayerActivity : BaseActivity() {
             KeyEvent.KEYCODE_NUMPAD_ENTER,
             -> {
                 if (!isSidePanelVisible() && !hasControlsFocus()) {
-                    if (osdMode == OsdMode.Hidden) player?.pause()
+                    if (osdMode == OsdMode.Hidden) binding.btnPlayPause.performClick()
                     setControlsVisible(true)
                     focusFirstControl()
                     return true
                 }
                 if (osdMode == OsdMode.Hidden && !isSidePanelVisible()) {
-                    player?.pause()
+                    binding.btnPlayPause.performClick()
                     setControlsVisible(true)
                     focusFirstControl()
                     return true
