@@ -120,6 +120,7 @@ class UpDetailActivity : BaseActivity() {
         setupAppBar()
         setupAdapters()
         setupTabs()
+        focusSelectedTab()
 
         binding.recycler.setHasFixedSize(true)
         (binding.recycler.itemAnimator as? SimpleItemAnimator)?.supportsChangeAnimations = false
@@ -160,6 +161,7 @@ class UpDetailActivity : BaseActivity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) Immersive.apply(this, BiliClient.prefs.fullscreenEnabled)
+        if (hasFocus) ensureInitialFocus()
         if (hasFocus) maybeConsumePendingFocusFirstContentAfterLoad()
     }
 
@@ -444,8 +446,8 @@ class UpDetailActivity : BaseActivity() {
 
     private fun ensureInitialFocus() {
         if (currentFocus != null) return
-        if (requestFocusFirstContentIfPossible()) return
         if (focusSelectedTab()) return
+        if (requestFocusFirstContentIfPossible()) return
         if (appBarVerticalOffset == 0 && binding.btnFollow.isVisible) {
             binding.btnFollow.requestFocus()
             return
@@ -574,12 +576,15 @@ class UpDetailActivity : BaseActivity() {
     }
 
     private fun resetAndLoadArchive() {
+        val focused = currentFocus
+        if (focused != null && focused != binding.recycler && FocusTreeUtils.isDescendantOf(focused, binding.recycler)) {
+            pendingFocusFirstArchiveItemAfterLoad = true
+        }
         archiveRequestToken++
         loadedArchiveBvids.clear()
         archiveNextPage = 1
         archiveEndReached = false
         archiveIsLoadingMore = false
-        pendingFocusFirstArchiveItemAfterLoad = true
         archiveGridController?.clearPendingFocusAfterLoadMore()
         archiveAdapter.submit(emptyList())
         binding.swipeRefresh.isRefreshing = true
@@ -623,6 +628,10 @@ class UpDetailActivity : BaseActivity() {
     }
 
     private fun resetAndLoadSeasonsSeries() {
+        val focused = currentFocus
+        if (focused != null && focused != binding.recycler && FocusTreeUtils.isDescendantOf(focused, binding.recycler)) {
+            pendingFocusFirstSectionItemAfterLoad = true
+        }
         seasonsSeriesRequestToken++
         seasonsSeriesNextPage = 1
         seasonsSeriesEndReached = false
@@ -631,7 +640,6 @@ class UpDetailActivity : BaseActivity() {
         seasonsSeriesSections.clear()
         sectionPagingStates.clear()
         sectionPendingAdvanceIndex.clear()
-        pendingFocusFirstSectionItemAfterLoad = true
         binding.swipeRefresh.isRefreshing = true
         if (currentTab == UpTab.COLLECTION_SERIES) sectionAdapter.replaceAll(emptyList())
         loadMoreSeasonsSeries(isRefresh = true)
